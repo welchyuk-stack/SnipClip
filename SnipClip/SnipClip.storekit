@@ -4,7 +4,7 @@
     {
       "displayName" : "Unlock SnipClip",
       "familyShareable" : false,
-      "identifier" : "com.lukewelch.snipclip.unlock",
+      "identifier" : "com.snipclip.mac.unlock",
       "localizations" : [
         {
           "description" : "Unlock SnipClip forever — capture, annotate, copy.",
@@ -12,7 +12,7 @@
           "locale" : "en_GB"
         }
       ],
-      "productID" : "com.lukewelch.snipclip.unlock",
+      "productID" : "com.snipclip.mac.unlock",
       "referenceName" : "SnipClip Unlock",
       "type" : "NonConsumable"
     }

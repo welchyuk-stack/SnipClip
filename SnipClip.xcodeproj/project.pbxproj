@@ -108,7 +108,7 @@
 				LastUpgradeCheck = 1500;
 				TargetAttributes = {
 					F5A17A876CE0C9CAAC684F66 = {
-						DevelopmentTeam = NZK4VD7566;
+						DevelopmentTeam = Q8BH8C2Y28;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -229,7 +229,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = NZK4VD7566;
+				DEVELOPMENT_TEAM = Q8BH8C2Y28;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = SnipClip/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -238,7 +238,7 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.lukewelch.snipclip;
+				PRODUCT_BUNDLE_IDENTIFIER = com.snipclip.mac;
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.9;
 			};
@@ -252,7 +252,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = NZK4VD7566;
+				DEVELOPMENT_TEAM = Q8BH8C2Y28;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = SnipClip/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -261,7 +261,7 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.lukewelch.snipclip;
+				PRODUCT_BUNDLE_IDENTIFIER = com.snipclip.mac;
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.9;
 			};

@@ -1,6 +1,6 @@
 name: SnipClip
 options:
-  bundleIdPrefix: com.lukewelch
+  bundleIdPrefix: com.snipclip
   deploymentTarget:
     macOS: "13.0"
   xcodeVersion: "15"
@@ -13,7 +13,7 @@ targets:
       - path: SnipClip
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.lukewelch.snipclip
+        PRODUCT_BUNDLE_IDENTIFIER: com.snipclip.mac
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "5.9"
@@ -22,7 +22,7 @@ targets:
         INFOPLIST_FILE: SnipClip/Info.plist
         ENABLE_HARDENED_RUNTIME: YES
         CODE_SIGN_STYLE: Automatic
-        DEVELOPMENT_TEAM: NZK4VD7566
+        DEVELOPMENT_TEAM: Q8BH8C2Y28
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
 
 schemes:

@@ -5,7 +5,7 @@ import Foundation
 final class PurchaseManager {
     static let shared = PurchaseManager()
 
-    let productID = "com.lukewelch.snipclip.unlock"
+    let productID = "com.snipclip.mac.unlock"
     private let trialStartKey = "snipclip_trial_start"
     private let trialDuration: TimeInterval = 24 * 60 * 60   // 24 hours
 
