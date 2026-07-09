@@ -30,5 +30,7 @@
     <string>SnipClip needs Accessibility access to listen for the ⌘⇧2 global shortcut.</string>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.productivity</string>
 </dict>
 </plist>

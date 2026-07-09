@@ -5,8 +5,11 @@ import AppKit
 final class SelectionOverlayController {
     static let shared = SelectionOverlayController()
     private var window: SelectionOverlayWindow?
+    private var isCapturing = false
 
     func show() {
+        guard !isCapturing else { return }
+        isCapturing = true
         window?.close()
 
         // Union of all screen frames (NSScreen, origin bottom-left)
@@ -31,6 +34,7 @@ final class SelectionOverlayController {
         view.onCancel = { [weak self] in
             win.orderOut(nil)
             self?.window = nil
+            self?.isCapturing = false
         }
 
         win.contentView = view
@@ -41,15 +45,15 @@ final class SelectionOverlayController {
 
     private func capture(screenRect: NSRect) {
         // Brief pause so the overlay is fully gone before we grab pixels
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
-            guard let image = ScreenCapture.capture(nsScreenRect: screenRect) else { return }
-
-            // Auto-copy to clipboard immediately
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
+            guard let image = ScreenCapture.capture(nsScreenRect: screenRect) else {
+                self?.isCapturing = false
+                return
+            }
             NSPasteboard.general.clearContents()
             NSPasteboard.general.writeObjects([image])
-
-            // Open markup editor
             MarkupEditorController.shared.show(image: image)
+            self?.isCapturing = false
         }
     }
 }

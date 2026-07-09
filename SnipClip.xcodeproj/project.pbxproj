@@ -17,6 +17,7 @@
 		9658659D2F16194547A122A9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80552FADE48E5410A4A62DB3 /* AppDelegate.swift */; };
 		AAA3AA58AA3DE6B0BE546335 /* SnipClip.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 38F6F152B31C0B2E03CEA1E8 /* SnipClip.storekit */; };
 		CE7601F5FBB9DE37925F2072 /* SelectionOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B1221435367768116822875 /* SelectionOverlay.swift */; };
+		CF8FCCA6CF7A32C123900ED5 /* image-1783616200498.webp in Resources */ = {isa = PBXBuildFile; fileRef = F2B3721B9EB48856FD1A1398 /* image-1783616200498.webp */; };
 		E6686C04E518BAD00B49FAF0 /* PurchaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F7C20A65C5F24D48867F56C /* PurchaseManager.swift */; };
 		FD1096B5AADE6B0CE1356735 /* MarkupCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DA9838A69DF001774AC6C22 /* MarkupCanvasView.swift */; };
 /* End PBXBuildFile section */
@@ -29,6 +30,7 @@
 		49BAAB45835E584336E4562D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		4DA9838A69DF001774AC6C22 /* MarkupCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkupCanvasView.swift; sourceTree = "<group>"; };
 		5CAA5A9BE3D05F88345787A7 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		640A97A0C1B67B19AA38A1EB /* SnipClip-Debug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "SnipClip-Debug.entitlements"; sourceTree = "<group>"; };
 		80552FADE48E5410A4A62DB3 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		8F7C20A65C5F24D48867F56C /* PurchaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PurchaseManager.swift; sourceTree = "<group>"; };
 		9B1221435367768116822875 /* SelectionOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionOverlay.swift; sourceTree = "<group>"; };
@@ -37,6 +39,7 @@
 		B1DD02369333769476B2F445 /* PaywallWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallWindow.swift; sourceTree = "<group>"; };
 		BFFABC80297369CFC82EDA29 /* MarkupModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkupModel.swift; sourceTree = "<group>"; };
 		D414C391D98EA28E10FA2666 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		F2B3721B9EB48856FD1A1398 /* image-1783616200498.webp */ = {isa = PBXFileReference; path = "image-1783616200498.webp"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -61,6 +64,7 @@
 			children = (
 				80552FADE48E5410A4A62DB3 /* AppDelegate.swift */,
 				49BAAB45835E584336E4562D /* Assets.xcassets */,
+				F2B3721B9EB48856FD1A1398 /* image-1783616200498.webp */,
 				5CAA5A9BE3D05F88345787A7 /* Info.plist */,
 				D414C391D98EA28E10FA2666 /* main.swift */,
 				4DA9838A69DF001774AC6C22 /* MarkupCanvasView.swift */,
@@ -71,6 +75,7 @@
 				0CFC27A9341F44B4D2E668CD /* ScreenCapture.swift */,
 				9B1221435367768116822875 /* SelectionOverlay.swift */,
 				A8A8DBF26F1C05A275A19DA8 /* SidebarButton.swift */,
+				640A97A0C1B67B19AA38A1EB /* SnipClip-Debug.entitlements */,
 				A9C55F7164E71FE167BAF6EC /* SnipClip.entitlements */,
 				38F6F152B31C0B2E03CEA1E8 /* SnipClip.storekit */,
 			);
@@ -139,6 +144,7 @@
 			files = (
 				0E96D36364C4C28D957FC8FF /* Assets.xcassets in Resources */,
 				AAA3AA58AA3DE6B0BE546335 /* SnipClip.storekit in Resources */,
+				CF8FCCA6CF7A32C123900ED5 /* image-1783616200498.webp in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -248,7 +254,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = SnipClip/SnipClip.entitlements;
+				CODE_SIGN_ENTITLEMENTS = "SnipClip/SnipClip-Debug.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;

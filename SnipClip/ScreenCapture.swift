@@ -30,8 +30,13 @@ enum ScreenCapture {
             height: local.height * scaleY
         )
 
-        guard let cropped = fullImage.cropping(to: cropRect) else { return nil }
-        // Set NSImage size to logical points so it displays at 1:1 in the canvas
+        // Clamp to actual pixel bounds — prevents nil/bad crops near screen edges
+        let imageBounds = CGRect(x: 0, y: 0,
+                                 width: CGFloat(fullImage.width),
+                                 height: CGFloat(fullImage.height))
+        let safeCrop = cropRect.intersection(imageBounds)
+        guard !safeCrop.isNull, !safeCrop.isEmpty,
+              let cropped = fullImage.cropping(to: safeCrop) else { return nil }
         return NSImage(cgImage: cropped, size: rect.size)
     }
 
