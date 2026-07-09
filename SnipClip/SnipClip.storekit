@@ -1,0 +1,24 @@
+{
+  "identifier" : "SnipClipStore",
+  "nonConsumableProducts" : [
+    {
+      "displayName" : "Unlock SnipClip",
+      "familyShareable" : false,
+      "identifier" : "com.lukewelch.snipclip.unlock",
+      "localizations" : [
+        {
+          "description" : "Unlock SnipClip forever — capture, annotate, copy.",
+          "displayName" : "Unlock SnipClip",
+          "locale" : "en_GB"
+        }
+      ],
+      "productID" : "com.lukewelch.snipclip.unlock",
+      "referenceName" : "SnipClip Unlock",
+      "type" : "NonConsumable"
+    }
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}

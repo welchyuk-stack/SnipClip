@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SnipClip — Screenshot &amp; Markup for Mac</title>
+<style>
+  :root{--bg:#0A0A0F;--surface:#111118;--border:#24242E;--text:#DDE0EE;--text2:#7A7D96;--text3:#4A4C60;--accent:#3D7FE8;--accent-dim:rgba(61,127,232,.1)}
+  @media(prefers-color-scheme:light){:root{--bg:#F0F1F5;--surface:#fff;--border:#E0E1EA;--text:#111218;--text2:#555870;--text3:#9FA3B8;--accent:#2563EB;--accent-dim:rgba(37,99,235,.08)}}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;line-height:1.6}
+  .hero{max-width:720px;margin:0 auto;padding:96px 24px 80px;text-align:center}
+  .badge{display:inline-flex;align-items:center;gap:6px;background:var(--accent-dim);border:1px solid rgba(61,127,232,.2);color:var(--accent);font-size:12px;font-weight:600;letter-spacing:.04em;padding:4px 12px;border-radius:20px;margin-bottom:28px}
+  h1{font-size:clamp(36px,6vw,58px);font-weight:700;letter-spacing:-1.5px;line-height:1.1;margin-bottom:18px;text-wrap:balance}
+  .sub{font-size:18px;color:var(--text2);max-width:480px;margin:0 auto 36px;text-wrap:balance}
+  .actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:72px}
+  .btn-primary{display:inline-block;background:var(--accent);color:#fff;font-size:15px;font-weight:600;padding:12px 28px;border-radius:10px;text-decoration:none;letter-spacing:.01em}
+  .btn-secondary{display:inline-block;background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:15px;font-weight:500;padding:12px 28px;border-radius:10px;text-decoration:none}
+  .features{max-width:720px;margin:0 auto;padding:0 24px 96px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
+  .feat{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px}
+  .feat-icon{font-size:22px;margin-bottom:10px}
+  .feat h3{font-size:14px;font-weight:600;margin-bottom:4px}
+  .feat p{font-size:13px;color:var(--text2);line-height:1.5}
+  .price-block{text-align:center;padding:0 24px 80px}
+  .price-box{display:inline-block;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:40px 48px;max-width:400px;width:100%}
+  .price-box h2{font-size:22px;font-weight:700;margin-bottom:6px}
+  .price-box .price{font-size:48px;font-weight:800;letter-spacing:-2px;color:var(--accent);margin:16px 0 4px}
+  .price-box .price-note{font-size:13px;color:var(--text2);margin-bottom:24px}
+  .app-store-btn{display:inline-block;background:var(--text);color:var(--bg);font-size:14px;font-weight:600;padding:12px 28px;border-radius:10px;text-decoration:none;margin-bottom:12px}
+  .trial-note{font-size:12px;color:var(--text3)}
+  footer{text-align:center;padding:32px 24px 48px;border-top:1px solid var(--border);font-size:13px;color:var(--text3)}
+  footer a{color:var(--text2);text-decoration:none;margin:0 12px}
+  footer a:hover{color:var(--accent)}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="badge">Now on the Mac App Store</div>
+  <h1>The screenshot tool macOS always deserved.</h1>
+  <p class="sub">Capture any area, annotate it in seconds, copy straight to clipboard. Native, fast, beautiful.</p>
+  <div class="actions">
+    <a class="btn-primary" href="https://apps.apple.com/gb/app/snipclip/id000000000">Download on the Mac App Store</a>
+    <a class="btn-secondary" href="support.html">Support</a>
+  </div>
+</div>
+
+<div class="features">
+  <div class="feat">
+    <div class="feat-icon">⌘</div>
+    <h3>Global shortcut</h3>
+    <p>Hit ⌘⇧2 from any app. The overlay appears instantly, ready to drag.</p>
+  </div>
+  <div class="feat">
+    <div class="feat-icon">✏️</div>
+    <h3>6 markup tools</h3>
+    <p>Pen, arrow, rectangle, circle, highlight, and text. Everything you need, nothing you don't.</p>
+  </div>
+  <div class="feat">
+    <div class="feat-icon">📋</div>
+    <h3>Instant clipboard</h3>
+    <p>Your screenshot copies the moment you lift the mouse. Paste immediately.</p>
+  </div>
+  <div class="feat">
+    <div class="feat-icon">🖥</div>
+    <h3>Truly native</h3>
+    <p>Written in Swift with AppKit. No Electron, no subscription, no account required.</p>
+  </div>
+  <div class="feat">
+    <div class="feat-icon">🌗</div>
+    <h3>Dark &amp; light mode</h3>
+    <p>Follows your macOS appearance automatically. Looks right in both.</p>
+  </div>
+  <div class="feat">
+    <div class="feat-icon">🔒</div>
+    <h3>Fully private</h3>
+    <p>Screenshots never leave your Mac. No cloud, no tracking, no sign-in.</p>
+  </div>
+</div>
+
+<div class="price-block">
+  <div class="price-box">
+    <h2>SnipClip</h2>
+    <div class="price">£1.29</div>
+    <p class="price-note">One-time purchase. Yours forever.</p>
+    <a class="app-store-btn" href="https://apps.apple.com/gb/app/snipclip/id000000000">Download on the Mac App Store</a>
+    <p class="trial-note">Free for 24 hours — no card required</p>
+  </div>
+</div>
+
+<footer>
+  <span>© 2026 Luke Welch</span>
+  <a href="privacy.html">Privacy Policy</a>
+  <a href="support.html">Support</a>
+  <a href="mailto:appscripty@gmail.com">Contact</a>
+</footer>
+
+</body>
+</html>
