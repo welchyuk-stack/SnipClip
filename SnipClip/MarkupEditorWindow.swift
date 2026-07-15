@@ -38,9 +38,11 @@ final class MarkupEditorWindow: NSWindow {
     init(image: NSImage) {
         self.sourceImage = image
 
-        let screen = NSScreen.main ?? NSScreen.screens[0]
-        let maxW = screen.visibleFrame.width  * 0.88 - sidebarW
-        let maxH = screen.visibleFrame.height * 0.88
+        // Use the screen with the most available space rather than assuming main
+        let screen = NSScreen.screens.max(by: { $0.visibleFrame.width < $1.visibleFrame.width })
+                     ?? NSScreen.main ?? NSScreen.screens[0]
+        let maxW = screen.visibleFrame.width  * 0.90 - sidebarW
+        let maxH = screen.visibleFrame.height * 0.90
         let scale = min(1.0, min(maxW / image.size.width, maxH / image.size.height))
         let canvasW = image.size.width  * scale
         let canvasH = image.size.height * scale
@@ -49,8 +51,12 @@ final class MarkupEditorWindow: NSWindow {
         // but the canvas stays at its natural size — no image stretching.
         let totalH = max(canvasH, 520)
 
-        let cx = screen.visibleFrame.midX - totalW / 2
-        let cy = screen.visibleFrame.midY - totalH / 2
+        let cx = max(screen.visibleFrame.minX,
+                     min(screen.visibleFrame.midX - totalW / 2,
+                         screen.visibleFrame.maxX - totalW))
+        let cy = max(screen.visibleFrame.minY,
+                     min(screen.visibleFrame.midY - totalH / 2,
+                         screen.visibleFrame.maxY - totalH))
 
         super.init(
             contentRect: NSRect(x: cx, y: cy, width: totalW, height: totalH),
@@ -92,7 +98,7 @@ final class MarkupEditorWindow: NSWindow {
         let canvas = MarkupCanvasView()
         canvas.backgroundImage = sourceImage
         canvas.delegate = self
-        canvas.frame = NSRect(x: sidebarW + 1, y: totalH - canvasH, width: canvasW - 1, height: canvasH)
+        canvas.frame = NSRect(x: sidebarW + 1, y: totalH - canvasH, width: canvasW, height: canvasH)
         canvas.autoresizingMask = [.minYMargin]  // stays anchored to top on resize
         canvasView = canvas
 
