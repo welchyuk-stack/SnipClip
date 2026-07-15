@@ -63,21 +63,61 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Capture
 
+    private var lastCaptureRequest: Date = .distantPast
+
     @objc func startCapture() {
+        // Carbon can deliver a hotkey-pressed event twice for a single keypress;
+        // ignore repeat triggers that arrive within this window.
+        let now = Date()
+        guard now.timeIntervalSince(lastCaptureRequest) > 0.5 else { return }
+        lastCaptureRequest = now
+
         guard PurchaseManager.shared.canUse else {
             PaywallController.shared.show()
             return
         }
         guard CGPreflightScreenCaptureAccess() else {
-            CGRequestScreenCaptureAccess()
-            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
-                NSWorkspace.shared.open(url)
-            }
+            requestScreenRecordingAccess()
             return
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             SelectionOverlayController.shared.show()
         }
+    }
+
+    /// Always surfaces visible feedback — never fails silently, even if the
+    /// system permission prompt or Settings deep link doesn't fire (seen on
+    /// some macOS versions where the prompt is suppressed for the first call).
+    private func requestScreenRecordingAccess() {
+        NSApp.activate(ignoringOtherApps: true)
+        let alreadyGranted = CGRequestScreenCaptureAccess()
+        if alreadyGranted {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                SelectionOverlayController.shared.show()
+            }
+            return
+        }
+
+        let alert = NSAlert()
+        alert.messageText = "Screen Recording Access Needed"
+        alert.informativeText = "SnipClip needs Screen Recording permission to capture your screen. Click \"Open Settings\", then enable SnipClip under Privacy & Security → Screen Recording."
+        alert.addButton(withTitle: "Open Settings")
+        alert.addButton(withTitle: "Cancel")
+        alert.alertStyle = .informational
+        NSApp.activate(ignoringOtherApps: true)
+        let response = alert.runModal()
+        guard response == .alertFirstButtonReturn else { return }
+
+        let candidates = [
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+            "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_ScreenCapture"
+        ]
+        for urlString in candidates {
+            if let url = URL(string: urlString), NSWorkspace.shared.open(url) {
+                return
+            }
+        }
+        NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/System Settings.app"))
     }
 }
 
