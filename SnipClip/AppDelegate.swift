@@ -33,6 +33,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         captureItem.target = self
         menu.addItem(captureItem)
         menu.addItem(.separator())
+        let unlockItem = NSMenuItem(title: "Unlock SnipClip…", action: #selector(showPaywall), keyEquivalent: "")
+        unlockItem.target = self
+        menu.addItem(unlockItem)
+        menu.addItem(.separator())
         let privacyItem = NSMenuItem(title: "Privacy Policy", action: #selector(openPrivacyPolicy), keyEquivalent: "")
         privacyItem.target = self
         menu.addItem(privacyItem)
@@ -43,6 +47,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let quitItem = NSMenuItem(title: "Quit SnipClip", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         menu.addItem(quitItem)
         statusItem.menu = menu
+    }
+
+    @objc private func showPaywall() {
+        PaywallController.shared.show()
     }
 
     @objc private func openPrivacyPolicy() {
