@@ -26,8 +26,6 @@
     <string>NSApplication</string>
     <key>NSScreenCaptureUsageDescription</key>
     <string>SnipClip needs Screen Recording access to capture your screen.</string>
-    <key>NSAppleEventsUsageDescription</key>
-    <string>SnipClip needs Accessibility access to listen for the ⌘⇧2 global shortcut.</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>LSApplicationCategoryType</key>

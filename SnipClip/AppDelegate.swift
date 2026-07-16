@@ -33,9 +33,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         captureItem.target = self
         menu.addItem(captureItem)
         menu.addItem(.separator())
+        let privacyItem = NSMenuItem(title: "Privacy Policy", action: #selector(openPrivacyPolicy), keyEquivalent: "")
+        privacyItem.target = self
+        menu.addItem(privacyItem)
+        let supportItem = NSMenuItem(title: "Support", action: #selector(openSupport), keyEquivalent: "")
+        supportItem.target = self
+        menu.addItem(supportItem)
+        menu.addItem(.separator())
         let quitItem = NSMenuItem(title: "Quit SnipClip", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         menu.addItem(quitItem)
         statusItem.menu = menu
+    }
+
+    @objc private func openPrivacyPolicy() {
+        NSWorkspace.shared.open(URL(string: "https://welchyuk-stack.github.io/SnipClip/privacy.html")!)
+    }
+
+    @objc private func openSupport() {
+        NSWorkspace.shared.open(URL(string: "https://welchyuk-stack.github.io/SnipClip/support.html")!)
     }
 
     // MARK: - Global hotkey (Carbon — no Accessibility permission needed)
