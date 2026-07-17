@@ -12,6 +12,10 @@ final class SelectionOverlayController {
         isCapturing = true
         window?.close()
 
+        // Close any leftover editor window from a previous capture so it
+        // can't end up visible in the new screenshot.
+        MarkupEditorController.shared.closeIfOpen()
+
         // Union of all screen frames (NSScreen, origin bottom-left)
         let unionRect = NSScreen.screens.reduce(NSRect.zero) { $0.union($1.frame) }
 

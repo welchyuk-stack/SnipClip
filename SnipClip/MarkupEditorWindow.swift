@@ -20,6 +20,13 @@ final class MarkupEditorController: NSObject, NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
         editorWindow = nil
     }
+
+    /// Closes any open editor window so it can't linger on screen and get
+    /// captured as part of a subsequent screenshot.
+    func closeIfOpen() {
+        editorWindow?.close()
+        editorWindow = nil
+    }
 }
 
 // MARK: - Window
