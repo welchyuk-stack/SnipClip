@@ -46,12 +46,17 @@ final class PurchaseManager {
     // MARK: - Lifecycle
 
     func start() {
-        updateListenerTask = Task(priority: .background) {
+        // `isUnlocked`/`product` are only ever mutated on the main actor —
+        // both listeners below hop there explicitly — while the UI (AppDelegate,
+        // PaywallWindow) reads them synchronously from the main thread. Keeping
+        // all writes on @MainActor avoids a real data race without requiring
+        // every call site in this file to become actor-isolated.
+        updateListenerTask = Task { @MainActor in
             for await result in Transaction.updates {
                 await self.handle(result)
             }
         }
-        Task {
+        Task { @MainActor in
             await checkCurrentEntitlements()
             await fetchProduct()
         }
@@ -59,12 +64,14 @@ final class PurchaseManager {
 
     // MARK: - StoreKit
 
+    @MainActor
     private func checkCurrentEntitlements() async {
         for await result in Transaction.currentEntitlements {
             await handle(result)
         }
     }
 
+    @MainActor
     private func fetchProduct() async {
         do {
             let products = try await Product.products(for: [productID])
@@ -74,6 +81,7 @@ final class PurchaseManager {
         }
     }
 
+    @MainActor
     private func handle(_ result: VerificationResult<Transaction>) async {
         guard case .verified(let tx) = result else { return }
         if tx.productID == productID && tx.revocationDate == nil {
@@ -109,7 +117,7 @@ final class PurchaseManager {
         }
     }
 
-    var displayPrice: String { product?.displayPrice ?? "£1.29" }
+    var displayPrice: String { product?.displayPrice ?? "£1.99" }
 
     enum PurchaseError: Error {
         case productNotLoaded

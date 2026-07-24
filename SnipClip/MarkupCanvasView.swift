@@ -64,7 +64,7 @@ final class MarkupCanvasView: NSView {
             path.lineWidth = currentLineWidth
             path.stroke()
 
-        case .rectangle:
+        case .circle:
             currentColor.setStroke()
             let path = NSBezierPath(ovalIn: NSRect(from: dragStart, to: dragEnd))
             path.lineWidth = currentLineWidth
@@ -120,9 +120,9 @@ final class MarkupCanvasView: NSView {
         case .rect:
             guard dist(dragStart, dragEnd) > 5 else { needsDisplay = true; return }
             shape = .rect(NSRect(from: dragStart, to: dragEnd))
-        case .rectangle:
+        case .circle:
             guard dist(dragStart, dragEnd) > 5 else { needsDisplay = true; return }
-            shape = .rectangle(NSRect(from: dragStart, to: dragEnd))
+            shape = .circle(NSRect(from: dragStart, to: dragEnd))
         case .highlight:
             guard dist(dragStart, dragEnd) > 5 else { needsDisplay = true; return }
             shape = .highlight(NSRect(from: dragStart, to: dragEnd))
@@ -164,6 +164,14 @@ final class MarkupCanvasView: NSView {
         needsDisplay = true
     }
 
+    /// Discards the in-progress text field without adding it as an item —
+    /// used for Escape, as opposed to `commitPendingText` which Return uses.
+    private func cancelPendingText() {
+        textField?.removeFromSuperview()
+        textField = nil
+        needsDisplay = true
+    }
+
     // MARK: Helpers
 
     private func dist(_ a: NSPoint, _ b: NSPoint) -> CGFloat {
@@ -177,8 +185,12 @@ final class MarkupCanvasView: NSView {
 
 extension MarkupCanvasView: NSTextFieldDelegate {
     func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {
-        if selector == #selector(insertNewline(_:)) || selector == #selector(cancelOperation(_:)) {
+        if selector == #selector(insertNewline(_:)) {
             commitPendingText()
+            return true
+        }
+        if selector == #selector(cancelOperation(_:)) {
+            cancelPendingText()
             return true
         }
         return false

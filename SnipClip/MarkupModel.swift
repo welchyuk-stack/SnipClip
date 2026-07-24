@@ -1,7 +1,7 @@
 import AppKit
 
 enum MarkupTool: Int, CaseIterable {
-    case pen, arrow, rect, rectangle, highlight, text
+    case pen, arrow, rect, circle, highlight, text
 }
 
 final class MarkupItem {
@@ -9,7 +9,7 @@ final class MarkupItem {
         case pen([NSPoint])
         case arrow(NSPoint, NSPoint)
         case rect(NSRect)
-        case rectangle(NSRect)
+        case circle(NSRect)
         case highlight(NSRect)
         case text(NSPoint, String)
     }
@@ -46,7 +46,7 @@ final class MarkupItem {
             path.lineWidth = lineWidth
             path.stroke()
 
-        case .rectangle(let r):
+        case .circle(let r):
             color.setStroke()
             let path = NSBezierPath(ovalIn: r)
             path.lineWidth = lineWidth

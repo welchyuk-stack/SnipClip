@@ -56,6 +56,7 @@ final class SelectionOverlayController {
             }
             NSPasteboard.general.clearContents()
             NSPasteboard.general.writeObjects([image])
+            CaptureHistory.shared.record(image)
             MarkupEditorController.shared.show(image: image)
             self?.isCapturing = false
         }

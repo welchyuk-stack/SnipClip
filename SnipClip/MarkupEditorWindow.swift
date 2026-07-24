@@ -131,7 +131,7 @@ final class MarkupEditorWindow: NSWindow {
             (.pen,       "pencil.tip",       "Pen"),
             (.arrow,     "arrow.up.right",   "Arrow"),
             (.rect,      "rectangle",          "Rectangle"),
-            (.rectangle, "circle",            "Circle"),
+            (.circle,    "circle",            "Circle"),
             (.highlight, "highlighter",      "Highlight"),
             (.text,      "text.cursor",      "Text"),
         ]
@@ -243,11 +243,17 @@ final class MarkupEditorWindow: NSWindow {
         panel.beginSheetModal(for: self) { [weak self] response in
             guard response == .OK, let url = panel.url, let self else { return }
             let img = self.renderFinal()
-            if let tiff = img.tiffRepresentation,
-               let rep  = NSBitmapImageRep(data: tiff),
-               let data = rep.representation(using: .png, properties: [:]) {
-                try? data.write(to: url)
-            }
+            guard let tiff = img.tiffRepresentation,
+                  let rep  = NSBitmapImageRep(data: tiff) else { return }
+
+            // Match the actual bytes written to the extension the user chose —
+            // saving as .jpg must produce real JPEG data, not PNG bytes.
+            let isJPEG = ["jpg", "jpeg"].contains(url.pathExtension.lowercased())
+            let data = isJPEG
+                ? rep.representation(using: .jpeg, properties: [.compressionFactor: 0.9])
+                : rep.representation(using: .png, properties: [:])
+            guard let data else { return }
+            try? data.write(to: url)
         }
     }
 

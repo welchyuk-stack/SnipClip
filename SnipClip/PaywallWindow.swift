@@ -205,7 +205,15 @@ final class PaywallWindow: NSWindow {
     @objc private func didTapRestore() {
         Task { @MainActor in
             await PurchaseManager.shared.restore()
-            if PurchaseManager.shared.isUnlocked { self.close() }
+            if PurchaseManager.shared.isUnlocked {
+                self.close()
+            } else {
+                let alert = NSAlert()
+                alert.messageText = "Nothing to Restore"
+                alert.informativeText = "We couldn't find a previous purchase of SnipClip for this Apple ID."
+                alert.alertStyle = .informational
+                alert.runModal()
+            }
         }
     }
 

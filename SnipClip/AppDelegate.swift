@@ -1,21 +1,23 @@
 import AppKit
-import Carbon.HIToolbox
 
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
-    private var hotKeyRef: EventHotKeyRef?
-    private var eventHandlerRef: EventHandlerRef?
+    private var captureItem: NSMenuItem!
+    private var recentCapturesItem: NSMenuItem!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupStatusItem()
-        setupGlobalHotkey()
+        NotificationCenter.default.addObserver(self,
+            selector: #selector(startCapture), name: .snipHotkeyFired, object: nil)
+        NotificationCenter.default.addObserver(self,
+            selector: #selector(shortcutChanged), name: .snipShortcutChanged, object: nil)
+        HotkeyManager.shared.start()
         PurchaseManager.shared.start()
         CGRequestScreenCaptureAccess()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        if let ref = hotKeyRef { UnregisterEventHotKey(ref) }
-        if let ref = eventHandlerRef { RemoveEventHandler(ref) }
+        HotkeyManager.shared.stop()
     }
 
     // MARK: - Status bar
@@ -29,14 +31,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let menu = NSMenu()
-        let captureItem = NSMenuItem(title: "Capture Area  ⌘⇧S", action: #selector(startCapture), keyEquivalent: "")
-        captureItem.target = self
-        menu.addItem(captureItem)
+        let capture = NSMenuItem(title: captureTitle(), action: #selector(startCapture), keyEquivalent: "")
+        capture.target = self
+        menu.addItem(capture)
+        captureItem = capture
+
+        let recent = NSMenuItem(title: "Recent Captures", action: nil, keyEquivalent: "")
+        let recentSubmenu = NSMenu()
+        recent.submenu = recentSubmenu
+        menu.addItem(recent)
+        recentCapturesItem = recent
+
         menu.addItem(.separator())
         let unlockItem = NSMenuItem(title: "Unlock SnipClip…", action: #selector(showPaywall), keyEquivalent: "")
         unlockItem.target = self
         menu.addItem(unlockItem)
         menu.addItem(.separator())
+        let prefsItem = NSMenuItem(title: "Preferences…", action: #selector(showPreferences), keyEquivalent: ",")
+        prefsItem.target = self
+        menu.addItem(prefsItem)
         let privacyItem = NSMenuItem(title: "Privacy Policy", action: #selector(openPrivacyPolicy), keyEquivalent: "")
         privacyItem.target = self
         menu.addItem(privacyItem)
@@ -46,11 +59,66 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         let quitItem = NSMenuItem(title: "Quit SnipClip", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         menu.addItem(quitItem)
+        menu.delegate = self
         statusItem.menu = menu
+    }
+
+    private func captureTitle() -> String {
+        "Capture Area  \(HotkeyManager.shared.displayString)"
+    }
+
+    @objc private func shortcutChanged() {
+        captureItem.title = captureTitle()
+    }
+
+    // MARK: - Recent Captures
+
+    func menuWillOpen(_ menu: NSMenu) {
+        guard menu === statusItem.menu else { return }
+        rebuildRecentCaptures()
+    }
+
+    private func rebuildRecentCaptures() {
+        let submenu = recentCapturesItem.submenu!
+        submenu.removeAllItems()
+
+        let entries = CaptureHistory.shared.entries
+        guard !entries.isEmpty else {
+            recentCapturesItem.isEnabled = false
+            let empty = NSMenuItem(title: "No captures yet", action: nil, keyEquivalent: "")
+            empty.isEnabled = false
+            submenu.addItem(empty)
+            return
+        }
+        recentCapturesItem.isEnabled = true
+
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+
+        for (index, entry) in entries.enumerated() {
+            let item = NSMenuItem(title: formatter.string(from: entry.date),
+                                  action: #selector(reopenRecentCapture(_:)), keyEquivalent: "")
+            item.target = self
+            item.tag = index
+            let thumb = entry.image.copy() as! NSImage
+            thumb.size = NSSize(width: 32, height: 32 * (thumb.size.height / max(thumb.size.width, 1)))
+            item.image = thumb
+            submenu.addItem(item)
+        }
+    }
+
+    @objc private func reopenRecentCapture(_ sender: NSMenuItem) {
+        let entries = CaptureHistory.shared.entries
+        guard entries.indices.contains(sender.tag) else { return }
+        MarkupEditorController.shared.show(image: entries[sender.tag].image)
     }
 
     @objc private func showPaywall() {
         PaywallController.shared.show()
+    }
+
+    @objc private func showPreferences() {
+        PreferencesController.shared.show()
     }
 
     @objc private func openPrivacyPolicy() {
@@ -59,29 +127,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func openSupport() {
         NSWorkspace.shared.open(URL(string: "https://welchyuk-stack.github.io/SnipClip/support.html")!)
-    }
-
-    // MARK: - Global hotkey (Carbon — no Accessibility permission needed)
-
-    private func setupGlobalHotkey() {
-        // Post a notification from the C callback; observe it here
-        NotificationCenter.default.addObserver(self,
-            selector: #selector(startCapture),
-            name: .snipHotkeyFired, object: nil)
-
-        var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard),
-                                 eventKind: UInt32(kEventHotKeyPressed))
-
-        InstallEventHandler(GetApplicationEventTarget(), { _, _, _ -> OSStatus in
-            NotificationCenter.default.post(name: .snipHotkeyFired, object: nil)
-            return noErr
-        }, 1, &spec, nil, &eventHandlerRef)
-
-        var hkID = EventHotKeyID(); hkID.signature = 0x534E4950; hkID.id = 1
-        RegisterEventHotKey(UInt32(kVK_ANSI_S),
-                            UInt32(cmdKey | shiftKey),
-                            hkID, GetApplicationEventTarget(),
-                            0, &hotKeyRef)
     }
 
     // MARK: - Capture
@@ -142,8 +187,4 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/System Settings.app"))
     }
-}
-
-private extension Notification.Name {
-    static let snipHotkeyFired = Notification.Name("snipHotkeyFired")
 }
