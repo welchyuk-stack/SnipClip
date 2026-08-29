@@ -1,27 +1,27 @@
-import StoreKit
 import Foundation
 
-/// Manages the 24-hour free trial and the one-time unlock IAP.
+/// Manages the 24-hour free trial. There is no purchase path any more —
+/// SnipClip is sold as a paid-up-front app on the Store, and the trial
+/// simply gates existing installs that predate that change.
 final class PurchaseManager {
     static let shared = PurchaseManager()
 
-    let productID = "com.snipclip.mac.unlock"
-    private let trialStartKey = "snipclip_trial_start"
+    // Legacy key — only used once to migrate existing users from UserDefaults to Keychain.
+    private let legacyTrialStartKey = "snipclip_trial_start"
     private let trialDuration: TimeInterval = 24 * 60 * 60   // 24 hours
 
-    private(set) var isUnlocked = false
-    private(set) var product: Product?
-    private var updateListenerTask: Task<Void, Never>?
+    // Keychain coordinates for the trial start timestamp.
+    private let keychainService = "com.snipclip.mac"
+    private let keychainAccount = "trial_start"
 
     private init() {}
 
     // MARK: - Access
 
-    var canUse: Bool { isUnlocked || trialActive }
+    var canUse: Bool { trialActive }
 
     var trialActive: Bool {
-        guard !isUnlocked else { return true }
-        return Date().timeIntervalSince(trialStart) < trialDuration
+        Date().timeIntervalSince(trialStart) < trialDuration
     }
 
     var trialSecondsRemaining: TimeInterval {
@@ -36,90 +36,77 @@ final class PurchaseManager {
         return "\(m)m"
     }
 
-    private var trialStart: Date {
-        if let d = UserDefaults.standard.object(forKey: trialStartKey) as? Date { return d }
+    // Cached after first resolution — avoids repeated Keychain IPC on every property read.
+    private lazy var trialStart: Date = resolveTrialStart()
+
+    private func resolveTrialStart() -> Date {
+        var status = errSecSuccess
+        if let d = keychainLoadDate(status: &status) { return d }
+
+        // Only write a new date when the item is definitively absent — not on a
+        // transient error (locked keychain, auth failure, etc.) where the real
+        // date might still be there but temporarily unreadable.
+        guard status == errSecItemNotFound else { return Date() }
+
+        // One-time migration: honour an existing UserDefaults timestamp so users
+        // who already started their trial don't get a free reset after updating.
+        // Only delete the legacy value once the Keychain write is confirmed.
+        if let d = UserDefaults.standard.object(forKey: legacyTrialStartKey) as? Date {
+            if keychainSaveDate(d) {
+                UserDefaults.standard.removeObject(forKey: legacyTrialStartKey)
+            }
+            return d
+        }
+
+        // Fresh install — start the clock now.
         let d = Date()
-        UserDefaults.standard.set(d, forKey: trialStartKey)
+        keychainSaveDate(d)
         return d
     }
 
-    // MARK: - Lifecycle
+    // MARK: - Keychain helpers
 
-    func start() {
-        // `isUnlocked`/`product` are only ever mutated on the main actor —
-        // both listeners below hop there explicitly — while the UI (AppDelegate,
-        // PaywallWindow) reads them synchronously from the main thread. Keeping
-        // all writes on @MainActor avoids a real data race without requiring
-        // every call site in this file to become actor-isolated.
-        updateListenerTask = Task { @MainActor in
-            for await result in Transaction.updates {
-                await self.handle(result)
-            }
-        }
-        Task { @MainActor in
-            await checkCurrentEntitlements()
-            await fetchProduct()
-        }
+    private func keychainLoadDate(status statusOut: inout OSStatus) -> Date? {
+        let query: [CFString: Any] = [
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: keychainService,
+            kSecAttrAccount: keychainAccount,
+            kSecReturnData: true,
+            kSecMatchLimit: kSecMatchLimitOne
+        ]
+        var result: AnyObject?
+        statusOut = SecItemCopyMatching(query as CFDictionary, &result)
+        guard statusOut == errSecSuccess,
+              let data = result as? Data, data.count == 8 else { return nil }
+        // loadUnaligned: Keychain data is not guaranteed to be Double-aligned.
+        let ti = data.withUnsafeBytes { $0.loadUnaligned(as: Double.self) }
+        return Date(timeIntervalSince1970: ti)
     }
 
-    // MARK: - StoreKit
-
-    @MainActor
-    private func checkCurrentEntitlements() async {
-        for await result in Transaction.currentEntitlements {
-            await handle(result)
+    @discardableResult
+    private func keychainSaveDate(_ date: Date) -> Bool {
+        var ti = date.timeIntervalSince1970
+        let data = Data(bytes: &ti, count: 8)
+        // Search dict contains only identifying attributes — kSecAttrAccessible is an
+        // item attribute and belongs in the update/add payload, not the search predicate.
+        let search: [CFString: Any] = [
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: keychainService,
+            kSecAttrAccount: keychainAccount
+        ]
+        let attrs: [CFString: Any] = [
+            kSecValueData: data,
+            // Not backed up / not synced to iCloud — makes clock-rollback attacks harder.
+            kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        ]
+        let updateStatus = SecItemUpdate(search as CFDictionary, attrs as CFDictionary)
+        if updateStatus == errSecSuccess { return true }
+        if updateStatus == errSecItemNotFound {
+            var addQuery = search
+            addQuery[kSecValueData] = data
+            addQuery[kSecAttrAccessible] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+            return SecItemAdd(addQuery as CFDictionary, nil) == errSecSuccess
         }
-    }
-
-    @MainActor
-    private func fetchProduct() async {
-        do {
-            let products = try await Product.products(for: [productID])
-            product = products.first
-        } catch {
-            print("[PurchaseManager] product fetch error: \(error)")
-        }
-    }
-
-    @MainActor
-    private func handle(_ result: VerificationResult<Transaction>) async {
-        guard case .verified(let tx) = result else { return }
-        if tx.productID == productID && tx.revocationDate == nil {
-            isUnlocked = true
-        }
-        await tx.finish()
-    }
-
-    // MARK: - Actions
-
-    func purchase() async throws -> Bool {
-        guard let product else { throw PurchaseError.productNotLoaded }
-        let result = try await product.purchase()
-        switch result {
-        case .success(let verification):
-            await handle(verification)
-            return isUnlocked
-        case .userCancelled:
-            return false
-        case .pending:
-            return false
-        @unknown default:
-            return false
-        }
-    }
-
-    func restore() async {
-        do {
-            try await AppStore.sync()
-            await checkCurrentEntitlements()
-        } catch {
-            print("[PurchaseManager] restore error: \(error)")
-        }
-    }
-
-    var displayPrice: String { product?.displayPrice ?? "£1.99" }
-
-    enum PurchaseError: Error {
-        case productNotLoaded
+        return false
     }
 }

@@ -80,7 +80,7 @@ final class PaywallWindow: NSWindow {
         let pm = PurchaseManager.shared
         let subText = pm.trialActive
             ? "Your free trial ends in \(pm.trialTimeString)."
-            : "Your free trial has ended."
+            : "Your free trial has ended. SnipClip is now a paid app — new copies are available on the App Store."
         let subLabel = label(subText, size: 13, weight: .regular, color: .secondaryLabelColor)
         subLabel.alignment = .center
         stack.addArrangedSubview(subLabel)
@@ -108,34 +108,22 @@ final class PaywallWindow: NSWindow {
         stack.addArrangedSubview(sep())
         stack.setCustomSpacing(20, after: stack.arrangedSubviews.last!)
 
-        // ── CTA button ──
-        let buyBtn = NSButton()
-        buyBtn.title = "Unlock SnipClip — \(pm.displayPrice)"
-        buyBtn.bezelStyle = .regularSquare
-        buyBtn.isBordered = false
-        buyBtn.wantsLayer = true
-        buyBtn.layer?.backgroundColor = NSColor.controlAccentColor.cgColor
-        buyBtn.layer?.cornerRadius = 8
-        buyBtn.font = NSFont.systemFont(ofSize: 14, weight: .semibold)
-        buyBtn.contentTintColor = .white
-        buyBtn.translatesAutoresizingMaskIntoConstraints = false
-        buyBtn.heightAnchor.constraint(equalToConstant: 40).isActive = true
-        buyBtn.widthAnchor.constraint(equalToConstant: 280).isActive = true
-        buyBtn.target = self
-        buyBtn.action = #selector(didTapBuy)
-        stack.addArrangedSubview(buyBtn)
-        stack.setCustomSpacing(10, after: buyBtn)
-
-        // ── Restore link ──
-        let restoreBtn = NSButton()
-        restoreBtn.title = "Restore Purchase"
-        restoreBtn.bezelStyle = .inline
-        restoreBtn.isBordered = false
-        restoreBtn.font = NSFont.systemFont(ofSize: 12)
-        restoreBtn.contentTintColor = .tertiaryLabelColor
-        restoreBtn.target = self
-        restoreBtn.action = #selector(didTapRestore)
-        stack.addArrangedSubview(restoreBtn)
+        // ── App Store link ──
+        let storeBtn = NSButton()
+        storeBtn.title = "View SnipClip on the App Store"
+        storeBtn.bezelStyle = .regularSquare
+        storeBtn.isBordered = false
+        storeBtn.wantsLayer = true
+        storeBtn.layer?.backgroundColor = NSColor.controlAccentColor.cgColor
+        storeBtn.layer?.cornerRadius = 8
+        storeBtn.font = NSFont.systemFont(ofSize: 14, weight: .semibold)
+        storeBtn.contentTintColor = .white
+        storeBtn.translatesAutoresizingMaskIntoConstraints = false
+        storeBtn.heightAnchor.constraint(equalToConstant: 40).isActive = true
+        storeBtn.widthAnchor.constraint(equalToConstant: 280).isActive = true
+        storeBtn.target = self
+        storeBtn.action = #selector(didTapAppStore)
+        stack.addArrangedSubview(storeBtn)
     }
 
     // MARK: Helpers
@@ -188,33 +176,9 @@ final class PaywallWindow: NSWindow {
 
     // MARK: Actions
 
-    @objc private func didTapBuy() {
-        Task { @MainActor in
-            do {
-                let success = try await PurchaseManager.shared.purchase()
-                if success { self.close() }
-            } catch {
-                let alert = NSAlert()
-                alert.messageText = "Purchase failed"
-                alert.informativeText = error.localizedDescription
-                alert.runModal()
-            }
-        }
-    }
-
-    @objc private func didTapRestore() {
-        Task { @MainActor in
-            await PurchaseManager.shared.restore()
-            if PurchaseManager.shared.isUnlocked {
-                self.close()
-            } else {
-                let alert = NSAlert()
-                alert.messageText = "Nothing to Restore"
-                alert.informativeText = "We couldn't find a previous purchase of SnipClip for this Apple ID."
-                alert.alertStyle = .informational
-                alert.runModal()
-            }
-        }
+    // TODO: replace with the real App Store ID once assigned in App Store Connect.
+    @objc private func didTapAppStore() {
+        NSWorkspace.shared.open(URL(string: "https://apps.apple.com/gb/app/snipclip/id000000000")!)
     }
 
     override var canBecomeKey: Bool { true }

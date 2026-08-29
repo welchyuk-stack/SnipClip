@@ -12,7 +12,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NotificationCenter.default.addObserver(self,
             selector: #selector(shortcutChanged), name: .snipShortcutChanged, object: nil)
         HotkeyManager.shared.start()
-        PurchaseManager.shared.start()
         CGRequestScreenCaptureAccess()
     }
 
@@ -42,10 +41,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(recent)
         recentCapturesItem = recent
 
-        menu.addItem(.separator())
-        let unlockItem = NSMenuItem(title: "Unlock SnipClip…", action: #selector(showPaywall), keyEquivalent: "")
-        unlockItem.target = self
-        menu.addItem(unlockItem)
         menu.addItem(.separator())
         let prefsItem = NSMenuItem(title: "Preferences…", action: #selector(showPreferences), keyEquivalent: ",")
         prefsItem.target = self
@@ -113,20 +108,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         MarkupEditorController.shared.show(image: entries[sender.tag].image)
     }
 
-    @objc private func showPaywall() {
-        PaywallController.shared.show()
-    }
-
     @objc private func showPreferences() {
         PreferencesController.shared.show()
     }
 
     @objc private func openPrivacyPolicy() {
-        NSWorkspace.shared.open(URL(string: "https://welchyuk-stack.github.io/SnipClip/privacy.html")!)
+        NSWorkspace.shared.open(URL(string: "https://macbound.com/snipclip/privacy/")!)
     }
 
     @objc private func openSupport() {
-        NSWorkspace.shared.open(URL(string: "https://welchyuk-stack.github.io/SnipClip/support.html")!)
+        NSWorkspace.shared.open(URL(string: "https://macbound.com/snipclip/support/")!)
     }
 
     // MARK: - Capture
