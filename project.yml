@@ -36,4 +36,3 @@ schemes:
         SnipClip: all
     run:
       config: Debug
-      storeKitConfiguration: SnipClip/SnipClip.storekit

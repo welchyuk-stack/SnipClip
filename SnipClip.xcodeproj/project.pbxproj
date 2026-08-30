@@ -17,7 +17,6 @@
 		819814964F3BB68F6E63D373 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = D414C391D98EA28E10FA2666 /* main.swift */; };
 		9020F6909D2212026CB53AD9 /* MarkupModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFFABC80297369CFC82EDA29 /* MarkupModel.swift */; };
 		9658659D2F16194547A122A9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80552FADE48E5410A4A62DB3 /* AppDelegate.swift */; };
-		AAA3AA58AA3DE6B0BE546335 /* SnipClip.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 38F6F152B31C0B2E03CEA1E8 /* SnipClip.storekit */; };
 		CE7601F5FBB9DE37925F2072 /* SelectionOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B1221435367768116822875 /* SelectionOverlay.swift */; };
 		D1E70C076D60AB9387596215 /* HotkeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DEB3EA7EFBE48A51367BCB7 /* HotkeyManager.swift */; };
 		E6686C04E518BAD00B49FAF0 /* PurchaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F7C20A65C5F24D48867F56C /* PurchaseManager.swift */; };
@@ -28,7 +27,6 @@
 		023B90301687BA1F49251580 /* MarkupEditorWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkupEditorWindow.swift; sourceTree = "<group>"; };
 		0CFC27A9341F44B4D2E668CD /* ScreenCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenCapture.swift; sourceTree = "<group>"; };
 		181B85B1CDE3820EB33B3D23 /* SnipClip.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SnipClip.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		38F6F152B31C0B2E03CEA1E8 /* SnipClip.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = SnipClip.storekit; sourceTree = "<group>"; };
 		49BAAB45835E584336E4562D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		4DA9838A69DF001774AC6C22 /* MarkupCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkupCanvasView.swift; sourceTree = "<group>"; };
 		5CAA5A9BE3D05F88345787A7 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -83,7 +81,6 @@
 				A8A8DBF26F1C05A275A19DA8 /* SidebarButton.swift */,
 				640A97A0C1B67B19AA38A1EB /* SnipClip-Debug.entitlements */,
 				A9C55F7164E71FE167BAF6EC /* SnipClip.entitlements */,
-				38F6F152B31C0B2E03CEA1E8 /* SnipClip.storekit */,
 			);
 			path = SnipClip;
 			sourceTree = "<group>";
@@ -149,7 +146,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				0E96D36364C4C28D957FC8FF /* Assets.xcassets in Resources */,
-				AAA3AA58AA3DE6B0BE546335 /* SnipClip.storekit in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
