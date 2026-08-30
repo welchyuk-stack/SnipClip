@@ -130,10 +130,8 @@ final class MarkupCanvasView: NSView {
             return
         }
 
-        items.append(MarkupItem(shape, color: currentColor, lineWidth: currentLineWidth))
+        addItemAndRegisterUndo(MarkupItem(shape, color: currentColor, lineWidth: currentLineWidth))
         activePoints = []
-        delegate?.canvasDidChange()
-        needsDisplay = true
     }
 
     // MARK: Text
@@ -158,10 +156,9 @@ final class MarkupCanvasView: NSView {
         let str = tf.stringValue
         tf.removeFromSuperview()
         textField = nil
+        window?.makeFirstResponder(self)
         guard !str.isEmpty else { return }
-        items.append(MarkupItem(.text(textOrigin, str), color: currentColor, lineWidth: currentLineWidth))
-        delegate?.canvasDidChange()
-        needsDisplay = true
+        addItemAndRegisterUndo(MarkupItem(.text(textOrigin, str), color: currentColor, lineWidth: currentLineWidth))
     }
 
     /// Discards the in-progress text field without adding it as an item —
@@ -169,6 +166,27 @@ final class MarkupCanvasView: NSView {
     private func cancelPendingText() {
         textField?.removeFromSuperview()
         textField = nil
+        needsDisplay = true
+    }
+
+    // MARK: Undo / Redo
+
+    private func addItemAndRegisterUndo(_ item: MarkupItem) {
+        window?.undoManager?.registerUndo(withTarget: self) { target in
+            target.removeLastItemAndRegisterRedo(item)
+        }
+        items.append(item)
+        delegate?.canvasDidChange()
+        needsDisplay = true
+    }
+
+    private func removeLastItemAndRegisterRedo(_ item: MarkupItem) {
+        guard !items.isEmpty else { return }
+        window?.undoManager?.registerUndo(withTarget: self) { target in
+            target.addItemAndRegisterUndo(item)
+        }
+        items.removeLast()
+        delegate?.canvasDidChange()
         needsDisplay = true
     }
 

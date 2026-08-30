@@ -47,7 +47,7 @@ final class MarkupEditorWindow: NSWindow {
 
         // Use the screen with the most available space rather than assuming main
         let screen = NSScreen.screens.max(by: { $0.visibleFrame.width < $1.visibleFrame.width })
-                     ?? NSScreen.main ?? NSScreen.screens[0]
+                     ?? NSScreen.main ?? NSScreen.screens.first!
         let maxW = screen.visibleFrame.width  * 0.90 - sidebarW
         let maxH = screen.visibleFrame.height * 0.90
         let scale = min(1.0, min(maxW / image.size.width, maxH / image.size.height))
@@ -56,7 +56,7 @@ final class MarkupEditorWindow: NSWindow {
         let totalW = max(canvasW, 200) + sidebarW
         // Window must be at least 480pt tall so sidebar button groups never overlap,
         // but the canvas stays at its natural size — no image stretching.
-        let totalH = max(canvasH, 520)
+        let totalH = max(canvasH, 558)
 
         let cx = max(screen.visibleFrame.minX,
                      min(screen.visibleFrame.midX - totalW / 2,
@@ -76,7 +76,7 @@ final class MarkupEditorWindow: NSWindow {
         isReleasedWhenClosed = false
         // Minimum height must fit both the top tool section (~310pt) and bottom action
         // section (~145pt) plus a gap. Below this they'd overlap.
-        minSize = NSSize(width: sidebarW + 200, height: 520)
+        minSize = NSSize(width: sidebarW + 200, height: 558)
 
         buildContent(canvasW: canvasW, canvasH: canvasH, totalW: totalW, totalH: totalH)
     }
@@ -124,14 +124,12 @@ final class MarkupEditorWindow: NSWindow {
         // All positions are computed in AppKit bottom-left coordinates.
         // "from top" = height - topInset - (index+1)*itemStride
 
-        // ── Tool buttons — anchored to TOP (autoresizingMask = []) ─────
-        // We use [] (no autoresizing) because the root view is already correctly sized
-        // before contentView is assigned, so no resize-from-zero will occur.
+        // ── Tool buttons — pinned to TOP (.minYMargin: flexible bottom gap) ─────
         let tools: [(MarkupTool, String, String)] = [
             (.pen,       "pencil.tip",       "Pen"),
             (.arrow,     "arrow.up.right",   "Arrow"),
-            (.rect,      "rectangle",          "Rectangle"),
-            (.circle,    "circle",            "Circle"),
+            (.rect,      "rectangle",        "Rectangle"),
+            (.circle,    "circle",           "Circle"),
             (.highlight, "highlighter",      "Highlight"),
             (.text,      "text.cursor",      "Text"),
         ]
@@ -141,16 +139,16 @@ final class MarkupEditorWindow: NSWindow {
             // Place from top: first button 10pt from top, then 38pt stride
             let y = height - 10 - 36 - CGFloat(i) * 38
             btn.frame = NSRect(x: cx, y: y, width: 36, height: 36)
-            btn.autoresizingMask = []
+            btn.autoresizingMask = [.minYMargin]
             bar.addSubview(btn)
             toolButtons[tool] = btn
         }
 
-        // Separator below tools (stride is 38pt per button, 10pt top gap)
+        // Separator below tools
         var topCursor = height - 10 - CGFloat(tools.count) * 38 - 8
         let s1 = NSBox(); s1.boxType = .separator
         s1.frame = NSRect(x: 8, y: topCursor, width: sidebarW - 16, height: 1)
-        s1.autoresizingMask = []
+        s1.autoresizingMask = [.minYMargin]
         bar.addSubview(s1)
         topCursor -= 9
 
@@ -158,7 +156,7 @@ final class MarkupEditorWindow: NSWindow {
         topCursor -= 36
         let cp = ColorPickerButton(frame: NSRect(x: cx, y: topCursor, width: 36, height: 36))
         cp.color = .systemRed
-        cp.autoresizingMask = []
+        cp.autoresizingMask = [.minYMargin]
         cp.onChange = { [weak self] color in self?.canvasView.currentColor = color }
         bar.addSubview(cp)
         colorPicker = cp
@@ -167,20 +165,25 @@ final class MarkupEditorWindow: NSWindow {
         topCursor -= 9
         let s2 = NSBox(); s2.boxType = .separator
         s2.frame = NSRect(x: 8, y: topCursor, width: sidebarW - 16, height: 1)
-        s2.autoresizingMask = []
+        s2.autoresizingMask = [.minYMargin]
         bar.addSubview(s2)
         topCursor -= 9
 
         // Undo
         topCursor -= 36
         let undoBtn = SidebarIconButton(sfSymbol: "arrow.uturn.backward", tip: "Undo")
-        undoBtn.onAction = { [weak self] in
-            guard let self, !self.canvasView.items.isEmpty else { return }
-            self.canvasView.items.removeLast()
-        }
+        undoBtn.onAction = { [weak self] in self?.undoManager?.undo() }
         undoBtn.frame = NSRect(x: cx, y: topCursor, width: 36, height: 36)
-        undoBtn.autoresizingMask = []
+        undoBtn.autoresizingMask = [.minYMargin]
         bar.addSubview(undoBtn)
+
+        // Redo
+        topCursor -= 38
+        let redoBtn = SidebarIconButton(sfSymbol: "arrow.uturn.forward", tip: "Redo")
+        redoBtn.onAction = { [weak self] in self?.undoManager?.redo() }
+        redoBtn.frame = NSRect(x: cx, y: topCursor, width: 36, height: 36)
+        redoBtn.autoresizingMask = [.minYMargin]
+        bar.addSubview(redoBtn)
 
         // ── Action buttons — fixed positions from BOTTOM ────────
         func placeBot(_ v: NSView, y: CGFloat) {
@@ -240,20 +243,44 @@ final class MarkupEditorWindow: NSWindow {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [UTType.png, UTType.jpeg]
         panel.nameFieldStringValue = "screenshot.png"
+
+        let formatPicker = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 200, height: 28), pullsDown: false)
+        formatPicker.addItems(withTitles: ["PNG", "JPEG"])
+        formatPicker.selectItem(at: 0)
+        formatPicker.target = self
+        formatPicker.tag = 999
+        formatPicker.action = #selector(formatChanged(_:))
+        panel.accessoryView = formatPicker
+
         panel.beginSheetModal(for: self) { [weak self] response in
             guard response == .OK, let url = panel.url, let self else { return }
             let img = self.renderFinal()
             guard let tiff = img.tiffRepresentation,
                   let rep  = NSBitmapImageRep(data: tiff) else { return }
 
-            // Match the actual bytes written to the extension the user chose —
-            // saving as .jpg must produce real JPEG data, not PNG bytes.
-            let isJPEG = ["jpg", "jpeg"].contains(url.pathExtension.lowercased())
+            let isJPEG = formatPicker.indexOfSelectedItem == 1
             let data = isJPEG
                 ? rep.representation(using: .jpeg, properties: [.compressionFactor: 0.9])
                 : rep.representation(using: .png, properties: [:])
             guard let data else { return }
-            try? data.write(to: url)
+            do {
+                try data.write(to: url)
+            } catch {
+                NSAlert(error: error).runModal()
+            }
+        }
+    }
+
+    @objc private func formatChanged(_ sender: NSPopUpButton) {
+        guard let panel = sender.window as? NSSavePanel else { return }
+        let name = panel.nameFieldStringValue
+        let base = (name as NSString).deletingPathExtension
+        if sender.indexOfSelectedItem == 1 {
+            panel.nameFieldStringValue = base + ".jpg"
+            panel.allowedContentTypes = [UTType.jpeg]
+        } else {
+            panel.nameFieldStringValue = base + ".png"
+            panel.allowedContentTypes = [UTType.png]
         }
     }
 
@@ -273,15 +300,44 @@ final class MarkupEditorWindow: NSWindow {
         let canvasSize = canvasView.bounds.size
         guard canvasSize.width > 0, canvasSize.height > 0 else { return sourceImage }
 
-        let scaleX = imgSize.width  / canvasSize.width
-        let scaleY = imgSize.height / canvasSize.height
+        // Resolve pixel dimensions so markup is rendered at the captured
+        // resolution rather than at 1× logical points on Retina displays.
+        let pixW: Int
+        let pixH: Int
+        if let rep = sourceImage.representations.compactMap({ $0 as? NSBitmapImageRep }).first {
+            pixW = rep.pixelsWide; pixH = rep.pixelsHigh
+        } else {
+            pixW = Int(imgSize.width); pixH = Int(imgSize.height)
+        }
+
+        guard let bitmapRep = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: pixW, pixelsHigh: pixH,
+            bitsPerSample: 8, samplesPerPixel: 4,
+            hasAlpha: true, isPlanar: false,
+            colorSpaceName: .calibratedRGB,
+            bytesPerRow: 0, bitsPerPixel: 0
+        ) else { return sourceImage }
+        bitmapRep.size = imgSize
+
+        NSGraphicsContext.saveGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+        guard let gc = NSGraphicsContext(bitmapImageRep: bitmapRep) else { return sourceImage }
+        NSGraphicsContext.current = gc
+
+        let cg = gc.cgContext
+        // Flip: origin top-left, y increases downward — matches the canvas view.
+        cg.translateBy(x: 0, y: CGFloat(pixH))
+        cg.scaleBy(x: 1, y: -1)
+        sourceImage.draw(in: NSRect(origin: .zero, size: NSSize(width: CGFloat(pixW), height: CGFloat(pixH))))
+
+        let scaleX = CGFloat(pixW) / canvasSize.width
+        let scaleY = CGFloat(pixH) / canvasSize.height
+        cg.scaleBy(x: scaleX, y: scaleY)
+        for item in canvasView.items { item.draw() }
 
         let result = NSImage(size: imgSize)
-        result.lockFocusFlipped(true)
-        sourceImage.draw(in: NSRect(origin: .zero, size: imgSize))
-        NSGraphicsContext.current?.cgContext.scaleBy(x: scaleX, y: scaleY)
-        for item in canvasView.items { item.draw() }
-        result.unlockFocus()
+        result.addRepresentation(bitmapRep)
         return result
     }
 
@@ -292,9 +348,7 @@ final class MarkupEditorWindow: NSWindow {
 // MARK: - MarkupCanvasDelegate
 
 extension MarkupEditorWindow: MarkupCanvasDelegate {
-    func canvasDidChange() {
-        let img = renderFinal()
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.writeObjects([img])
-    }
+    // Clipboard is written only on explicit copyToClipboard() or initial capture —
+    // not on every stroke, to avoid silently clobbering the user's clipboard.
+    func canvasDidChange() {}
 }

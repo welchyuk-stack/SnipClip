@@ -30,13 +30,13 @@ final class SelectionOverlayController {
         win.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
         let view = SelectionOverlayView(frame: NSRect(origin: .zero, size: unionRect.size))
-        view.onComplete = { [weak self] screenNSRect in
-            win.orderOut(nil)
+        view.onComplete = { [weak self, weak win] screenNSRect in
+            win?.orderOut(nil)
             self?.window = nil
             self?.capture(screenRect: screenNSRect)
         }
-        view.onCancel = { [weak self] in
-            win.orderOut(nil)
+        view.onCancel = { [weak self, weak win] in
+            win?.orderOut(nil)
             self?.window = nil
             self?.isCapturing = false
         }

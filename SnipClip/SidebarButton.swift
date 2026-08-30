@@ -125,7 +125,8 @@ final class SidebarIconButton: NSView {
 
         animateState()
 
-        confirmTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
+        // Schedule on .common so the timer fires even when a menu or tracking loop is active.
+        let timer = Timer(timeInterval: 2.0, repeats: false) { [weak self] _ in
             guard let self else { return }
             self.confirmTimer = nil
             // Fade out → swap icon → fade back in
@@ -141,6 +142,8 @@ final class SidebarIconButton: NSView {
                 }
             }
         }
+        RunLoop.main.add(timer, forMode: .common)
+        confirmTimer = timer
     }
 
     // MARK: Mouse
@@ -196,16 +199,30 @@ final class ColorPickerButton: NSView {
     }
     required init?(coder: NSCoder) { fatalError() }
 
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        // NSColorPanel.setTarget uses assign (unsafe-unretained) semantics. Clear
+        // the target before this view is deallocated so the panel doesn't hold a
+        // dangling pointer after the editor window closes.
+        if newWindow == nil {
+            let panel = NSColorPanel.shared
+            panel.setTarget(nil)
+            panel.setAction(nil)
+        }
+        super.viewWillMove(toWindow: newWindow)
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         let r = bounds.insetBy(dx: 8, dy: 8)
 
-        // Subtle drop shadow
+        // Drop shadow — use saveGState/restoreGState so the shadow doesn't
+        // bleed into the ring drawn immediately after.
         let ctx = NSGraphicsContext.current!.cgContext
+        ctx.saveGState()
         ctx.setShadow(offset: CGSize(width: 0, height: -1), blur: 3,
                       color: NSColor.black.withAlphaComponent(0.28).cgColor)
         color.setFill()
         NSBezierPath(ovalIn: r).fill()
-        ctx.setShadow(offset: .zero, blur: 0, color: nil)
+        ctx.restoreGState()
 
         // Ring
         let ringAlpha: CGFloat = isHovered ? 0.4 : 0.22

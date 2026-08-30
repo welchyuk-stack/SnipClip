@@ -13,8 +13,16 @@ final class CaptureHistory {
 
     private(set) var entries: [Entry] = []
     private let maxEntries = 6
+    private var pressureSource: DispatchSourceMemoryPressure?
 
-    private init() {}
+    private init() {
+        // Evict cached screenshots under memory pressure so full-resolution
+        // NSImages (up to ~40 MB each) don't contribute to an OOM situation.
+        let source = DispatchSource.makeMemoryPressureSource(eventMask: [.warning, .critical], queue: .main)
+        source.setEventHandler { [weak self] in self?.clear() }
+        source.resume()
+        pressureSource = source
+    }
 
     func record(_ image: NSImage) {
         entries.insert(Entry(image: image, date: Date()), at: 0)

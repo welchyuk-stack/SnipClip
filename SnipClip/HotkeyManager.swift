@@ -84,19 +84,25 @@ final class HotkeyManager {
         if eventHandlerRef == nil {
             var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard),
                                      eventKind: UInt32(kEventHotKeyPressed))
-            InstallEventHandler(GetApplicationEventTarget(), { _, _, _ -> OSStatus in
-                NotificationCenter.default.post(name: .snipHotkeyFiredInternal, object: nil)
+            // Dispatch to main thread: Carbon events are typically delivered on the
+            // main thread via GetApplicationEventTarget, but this guarantees it.
+            let installStatus = InstallEventHandler(GetApplicationEventTarget(), { _, _, _ -> OSStatus in
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(name: .snipHotkeyFiredInternal, object: nil)
+                }
                 return noErr
             }, 1, &spec, nil, &eventHandlerRef)
+            assert(installStatus == noErr, "InstallEventHandler failed: \(installStatus)")
         }
 
         var hkID = EventHotKeyID(); hkID.signature = 0x534E4950; hkID.id = 1
-        RegisterEventHotKey(keyCode, modifiers, hkID, GetApplicationEventTarget(), 0, &hotKeyRef)
+        let regStatus = RegisterEventHotKey(keyCode, modifiers, hkID, GetApplicationEventTarget(), 0, &hotKeyRef)
+        assert(regStatus == noErr, "RegisterEventHotKey failed: \(regStatus)")
     }
 
     func stop() {
-        if let ref = hotKeyRef { UnregisterEventHotKey(ref) }
-        if let ref = eventHandlerRef { RemoveEventHandler(ref) }
+        if let ref = hotKeyRef { UnregisterEventHotKey(ref); hotKeyRef = nil }
+        if let ref = eventHandlerRef { RemoveEventHandler(ref); eventHandlerRef = nil }
     }
 
     @objc private func relayNotification() {
