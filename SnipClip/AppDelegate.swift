@@ -12,6 +12,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NotificationCenter.default.addObserver(self,
             selector: #selector(shortcutChanged), name: .snipShortcutChanged, object: nil)
         HotkeyManager.shared.start()
+        PurchaseManager.shared.start()
         CGRequestScreenCaptureAccess()
     }
 
@@ -95,7 +96,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                   action: #selector(reopenRecentCapture(_:)), keyEquivalent: "")
             item.target = self
             item.tag = index
-            let thumb = entry.image.copy() as! NSImage
+            guard let thumb = entry.image.copy() as? NSImage else { continue }
             thumb.size = NSSize(width: 32, height: 32 * (thumb.size.height / max(thumb.size.width, 1)))
             item.image = thumb
             submenu.addItem(item)

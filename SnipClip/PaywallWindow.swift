@@ -2,9 +2,11 @@ import AppKit
 
 // MARK: - Controller
 
-final class PaywallController {
+final class PaywallController: NSObject, NSWindowDelegate {
     static let shared = PaywallController()
     private var window: PaywallWindow?
+
+    private override init() { super.init() }
 
     func show() {
         if let existing = window, existing.isVisible {
@@ -13,15 +15,22 @@ final class PaywallController {
             return
         }
         let w = PaywallWindow()
+        w.delegate = self
         w.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         window = w
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        window = nil
     }
 }
 
 // MARK: - Window
 
 final class PaywallWindow: NSWindow {
+    private var storeBtn: NSButton?
+    private var appearanceObserver: NSKeyValueObservation?
 
     init() {
         super.init(
@@ -37,6 +46,15 @@ final class PaywallWindow: NSWindow {
         isMovableByWindowBackground = true
         center()
         buildUI()
+        // Keep the button's layer background in sync with the accent colour across
+        // Light/Dark mode switches — CGColor captured at init time is static.
+        appearanceObserver = observe(\.effectiveAppearance) { [weak self] _, _ in
+            self?.updateStoreBtnColor()
+        }
+    }
+
+    private func updateStoreBtnColor() {
+        storeBtn?.layer?.backgroundColor = NSColor.controlAccentColor.cgColor
     }
 
     private func buildUI() {
@@ -124,6 +142,19 @@ final class PaywallWindow: NSWindow {
         storeBtn.target = self
         storeBtn.action = #selector(didTapAppStore)
         stack.addArrangedSubview(storeBtn)
+        self.storeBtn = storeBtn
+        stack.setCustomSpacing(10, after: storeBtn)
+
+        // ── Restore link — for anyone who already bought the (now-retired) unlock ──
+        let restoreBtn = NSButton()
+        restoreBtn.title = "Restore Purchase"
+        restoreBtn.bezelStyle = .inline
+        restoreBtn.isBordered = false
+        restoreBtn.font = NSFont.systemFont(ofSize: 12)
+        restoreBtn.contentTintColor = .tertiaryLabelColor
+        restoreBtn.target = self
+        restoreBtn.action = #selector(didTapRestore)
+        stack.addArrangedSubview(restoreBtn)
     }
 
     // MARK: Helpers
@@ -176,9 +207,23 @@ final class PaywallWindow: NSWindow {
 
     // MARK: Actions
 
-    // TODO: replace with the real App Store ID once assigned in App Store Connect.
     @objc private func didTapAppStore() {
-        NSWorkspace.shared.open(URL(string: "https://apps.apple.com/gb/app/snipclip/id000000000")!)
+        NSWorkspace.shared.open(URL(string: "https://apps.apple.com/gb/app/snipclip/id6789209242")!)
+    }
+
+    @objc private func didTapRestore() {
+        Task { @MainActor in
+            await PurchaseManager.shared.restore()
+            if PurchaseManager.shared.isUnlocked {
+                self.close()
+            } else {
+                let alert = NSAlert()
+                alert.messageText = "Nothing to Restore"
+                alert.informativeText = "We couldn't find a previous purchase of SnipClip for this Apple ID."
+                alert.alertStyle = .informational
+                alert.runModal()
+            }
+        }
     }
 
     override var canBecomeKey: Bool { true }

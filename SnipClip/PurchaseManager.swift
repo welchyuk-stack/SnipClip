@@ -1,10 +1,20 @@
+import StoreKit
 import Foundation
 
-/// Manages the 24-hour free trial. There is no purchase path any more —
-/// SnipClip is sold as a paid-up-front app on the Store, and the trial
-/// simply gates existing installs that predate that change.
+/// Manages access to SnipClip.
+///
+/// The in-app unlock (`com.snipclip.mac.unlock`) was removed from sale when
+/// SnipClip became a paid-up-front app — new copies are sold directly by the
+/// Store, with no in-app purchase. But "removed from sale" only stops *new*
+/// purchases; everyone who already bought the unlock still owns that
+/// transaction on Apple's side, so we still verify it here (read-only — no
+/// purchase UI, since the product can no longer be bought). The 24-hour
+/// trial otherwise gates any install that predates the paid-app change.
 final class PurchaseManager {
     static let shared = PurchaseManager()
+
+    /// Retired from sale, but still checked so existing owners aren't locked out.
+    let legacyUnlockProductID = "com.snipclip.mac.unlock"
 
     // Legacy key — only used once to migrate existing users from UserDefaults to Keychain.
     private let legacyTrialStartKey = "snipclip_trial_start"
@@ -14,14 +24,18 @@ final class PurchaseManager {
     private let keychainService = "com.snipclip.mac"
     private let keychainAccount = "trial_start"
 
+    private(set) var isUnlocked = false
+    private var updateListenerTask: Task<Void, Never>?
+
     private init() {}
 
     // MARK: - Access
 
-    var canUse: Bool { trialActive }
+    var canUse: Bool { isUnlocked || trialActive }
 
     var trialActive: Bool {
-        Date().timeIntervalSince(trialStart) < trialDuration
+        guard !isUnlocked else { return true }
+        return Date().timeIntervalSince(trialStart) < trialDuration
     }
 
     var trialSecondsRemaining: TimeInterval {
@@ -108,5 +122,50 @@ final class PurchaseManager {
             return SecItemAdd(addQuery as CFDictionary, nil) == errSecSuccess
         }
         return false
+    }
+
+    // MARK: - Lifecycle
+
+    /// Verifies any pre-existing purchase of the (now retired) unlock IAP.
+    /// Read-only: there is no purchase flow any more, only entitlement checks.
+    func start() {
+        // `isUnlocked` is only ever mutated on the main actor — both the listener
+        // below and the UI (AppDelegate, PaywallWindow) read/write it there —
+        // avoiding a real data race without making every call site actor-isolated.
+        updateListenerTask = Task { @MainActor in
+            for await result in Transaction.updates {
+                await self.handle(result)
+            }
+        }
+        Task { @MainActor in
+            await checkCurrentEntitlements()
+        }
+    }
+
+    @MainActor
+    private func checkCurrentEntitlements() async {
+        for await result in Transaction.currentEntitlements {
+            await handle(result)
+        }
+    }
+
+    @MainActor
+    private func handle(_ result: VerificationResult<Transaction>) async {
+        guard case .verified(let tx) = result else { return }
+        if tx.productID == legacyUnlockProductID && tx.revocationDate == nil {
+            isUnlocked = true
+        }
+        await tx.finish()
+    }
+
+    /// Re-checks entitlements against Apple's servers — for the paywall's
+    /// "Restore Purchase" action, covering a fresh install or a new Mac.
+    func restore() async {
+        do {
+            try await AppStore.sync()
+            await checkCurrentEntitlements()
+        } catch {
+            print("[PurchaseManager] restore error: \(error)")
+        }
     }
 }
