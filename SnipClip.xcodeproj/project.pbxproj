@@ -19,7 +19,6 @@
 		9658659D2F16194547A122A9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80552FADE48E5410A4A62DB3 /* AppDelegate.swift */; };
 		AAA3AA58AA3DE6B0BE546335 /* SnipClip.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 38F6F152B31C0B2E03CEA1E8 /* SnipClip.storekit */; };
 		CE7601F5FBB9DE37925F2072 /* SelectionOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B1221435367768116822875 /* SelectionOverlay.swift */; };
-		CF8FCCA6CF7A32C123900ED5 /* image-1783616200498.webp in Resources */ = {isa = PBXBuildFile; fileRef = F2B3721B9EB48856FD1A1398 /* image-1783616200498.webp */; };
 		D1E70C076D60AB9387596215 /* HotkeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DEB3EA7EFBE48A51367BCB7 /* HotkeyManager.swift */; };
 		E6686C04E518BAD00B49FAF0 /* PurchaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F7C20A65C5F24D48867F56C /* PurchaseManager.swift */; };
 		FD1096B5AADE6B0CE1356735 /* MarkupCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DA9838A69DF001774AC6C22 /* MarkupCanvasView.swift */; };
@@ -45,7 +44,6 @@
 		BAF16A36FFF3883039314BEE /* PreferencesWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesWindow.swift; sourceTree = "<group>"; };
 		BFFABC80297369CFC82EDA29 /* MarkupModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkupModel.swift; sourceTree = "<group>"; };
 		D414C391D98EA28E10FA2666 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
-		F2B3721B9EB48856FD1A1398 /* image-1783616200498.webp */ = {isa = PBXFileReference; lastKnownFileType = file; path = "image-1783616200498.webp"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -72,7 +70,6 @@
 				49BAAB45835E584336E4562D /* Assets.xcassets */,
 				7E1E7EF77550A79D8DBCD85C /* CaptureHistory.swift */,
 				6DEB3EA7EFBE48A51367BCB7 /* HotkeyManager.swift */,
-				F2B3721B9EB48856FD1A1398 /* image-1783616200498.webp */,
 				5CAA5A9BE3D05F88345787A7 /* Info.plist */,
 				D414C391D98EA28E10FA2666 /* main.swift */,
 				4DA9838A69DF001774AC6C22 /* MarkupCanvasView.swift */,
@@ -153,7 +150,6 @@
 			files = (
 				0E96D36364C4C28D957FC8FF /* Assets.xcassets in Resources */,
 				AAA3AA58AA3DE6B0BE546335 /* SnipClip.storekit in Resources */,
-				CF8FCCA6CF7A32C123900ED5 /* image-1783616200498.webp in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
