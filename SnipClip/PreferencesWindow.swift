@@ -75,7 +75,7 @@ final class PreferencesWindow: NSWindow {
         resetBtn.frame = NSRect(x: 196, y: 58, width: 120, height: 28)
         root.addSubview(resetBtn)
 
-        let footer = NSTextField(labelWithString: "SnipClip v1.3")
+        let footer = NSTextField(labelWithString: "SnipClip v1.3.1")
         footer.font = NSFont.systemFont(ofSize: 10)
         footer.textColor = .tertiaryLabelColor
         footer.frame = NSRect(x: 24, y: 16, width: 200, height: 16)
