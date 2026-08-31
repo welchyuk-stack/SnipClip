@@ -31,7 +31,17 @@ final class PurchaseManager {
 
     // MARK: - Access
 
-    var canUse: Bool { isUnlocked || trialActive }
+    var canUse: Bool {
+        #if DEBUG
+        // Local/dev builds never go through the App Store, so there's no way
+        // to hold a real entitlement — and a machine used for testing tends to
+        // have a long-expired Keychain trial timestamp from earlier runs.
+        // Debug builds are never distributed, so this can't affect real users.
+        return true
+        #else
+        return isUnlocked || trialActive
+        #endif
+    }
 
     var trialActive: Bool {
         guard !isUnlocked else { return true }
