@@ -56,7 +56,7 @@ final class TimedCaptureController {
         isArmed = true
 
         let screen = TimedCaptureController.targetScreen()
-        let win = CountdownHUDWindow(screen: screen, destination: destination, totalSeconds: delay)
+        let win = CountdownHUDWindow(screen: screen, destination: destination)
         win.onCancel = { [weak self] in self?.cancel() }
         win.updateCount(delay)
         win.makeKeyAndOrderFront(nil)
@@ -134,10 +134,10 @@ final class TimedCaptureController {
 
 private final class CountdownHUDWindow: NSWindow {
     var onCancel: (() -> Void)?
-    private let ring = CountdownRingView(frame: NSRect(x: 0, y: 0, width: 120, height: 120))
+    private let numberLabel = NSTextField(labelWithString: "")
 
-    init(screen: NSScreen, destination: URL, totalSeconds: Int) {
-        let size = NSSize(width: 260, height: 250)
+    init(screen: NSScreen, destination: URL) {
+        let size = NSSize(width: 240, height: 200)
         super.init(
             contentRect: NSRect(origin: .zero, size: size),
             styleMask: [.borderless],
@@ -157,16 +157,15 @@ private final class CountdownHUDWindow: NSWindow {
         setFrameOrigin(origin)
 
         buildUI(size: size, destination: destination)
-        ring.drain(over: TimeInterval(totalSeconds))
 
-        // Gentle pop-in rather than appearing abruptly.
+        // Gentle fade-in. Deliberately alpha-only — animating the window's
+        // own frame right as a layer-backed contentView is installed trips
+        // AppKit's layout-recursion guard and can be caught mid-transition.
         alphaValue = 0
-        setFrame(frame.insetBy(dx: 6, dy: 6), display: false)
         NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.18
+            ctx.duration = 0.15
             ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
             animator().alphaValue = 1
-            animator().setFrame(NSRect(origin: origin, size: size), display: true)
         }
     }
 
@@ -180,34 +179,53 @@ private final class CountdownHUDWindow: NSWindow {
         blur.layer?.masksToBounds = true
         contentView = blur
 
+        // Fixed vertical rhythm, laid out top-down, so all the pieces stay
+        // evenly spaced regardless of card size.
+        let topPadding: CGFloat = 22
+        let titleHeight: CGFloat = 18
+        let gapTitleNumber: CGFloat = 10
+        let numberHeight: CGFloat = 64
+        let gapNumberDest: CGFloat = 14
+        let destHeight: CGFloat = 16
+        let gapDestHint: CGFloat = 8
+        let hintHeight: CGFloat = 14
+
+        var y = size.height - topPadding - titleHeight
+
         let title = NSTextField(labelWithString: "Full-Screen Capture")
         title.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
         title.textColor = .labelColor
         title.alignment = .center
-        title.frame = NSRect(x: 0, y: size.height - 40, width: size.width, height: 18)
+        title.frame = NSRect(x: 0, y: y, width: size.width, height: titleHeight)
         blur.addSubview(title)
 
-        ring.frame = NSRect(x: (size.width - 120) / 2, y: 70, width: 120, height: 120)
-        blur.addSubview(ring)
+        y -= gapTitleNumber + numberHeight
+        numberLabel.font = NSFont.monospacedDigitSystemFont(ofSize: 52, weight: .bold)
+        numberLabel.textColor = .labelColor
+        numberLabel.alignment = .center
+        numberLabel.frame = NSRect(x: 0, y: y, width: size.width, height: numberHeight)
+        blur.addSubview(numberLabel)
 
+        y -= gapNumberDest + destHeight
         let destLine = NSTextField(labelWithString: destination.lastPathComponent)
         destLine.font = NSFont.systemFont(ofSize: 11, weight: .regular)
         destLine.textColor = .secondaryLabelColor
         destLine.alignment = .center
         destLine.lineBreakMode = .byTruncatingMiddle
-        destLine.frame = NSRect(x: 16, y: 42, width: size.width - 32, height: 16)
+        destLine.frame = NSRect(x: 16, y: y, width: size.width - 32, height: destHeight)
         blur.addSubview(destLine)
 
+        y -= gapDestHint + hintHeight
         let hint = NSTextField(labelWithString: "Press Esc to Cancel")
         hint.font = NSFont.systemFont(ofSize: 10, weight: .regular)
         hint.textColor = .tertiaryLabelColor
         hint.alignment = .center
-        hint.frame = NSRect(x: 0, y: 18, width: size.width, height: 14)
+        hint.frame = NSRect(x: 0, y: y, width: size.width, height: hintHeight)
         blur.addSubview(hint)
     }
 
     func updateCount(_ n: Int) {
-        ring.setNumber(n)
+        numberLabel.stringValue = n > 0 ? "\(n)" : "📸"
     }
 
     override func keyDown(with event: NSEvent) {
@@ -216,67 +234,4 @@ private final class CountdownHUDWindow: NSWindow {
     }
 
     override var canBecomeKey: Bool { true }
-}
-
-/// A circular progress ring that drains smoothly over the countdown's full
-/// duration, with the current whole-second count in bold in the center.
-private final class CountdownRingView: NSView {
-    private let trackLayer = CAShapeLayer()
-    private let progressLayer = CAShapeLayer()
-    private let numberLabel = NSTextField(labelWithString: "")
-
-    override init(frame frameRect: NSRect) {
-        super.init(frame: frameRect)
-        wantsLayer = true
-        setUpLayers()
-        setUpLabel()
-    }
-    required init?(coder: NSCoder) { fatalError() }
-
-    private func setUpLayers() {
-        let lineWidth: CGFloat = 7
-        let path = CGPath(
-            ellipseIn: bounds.insetBy(dx: lineWidth / 2, dy: lineWidth / 2),
-            transform: nil
-        )
-
-        trackLayer.path = path
-        trackLayer.fillColor = NSColor.clear.cgColor
-        trackLayer.strokeColor = NSColor(calibratedWhite: 0.5, alpha: 0.2).cgColor
-        trackLayer.lineWidth = lineWidth
-        layer?.addSublayer(trackLayer)
-
-        progressLayer.path = path
-        progressLayer.fillColor = NSColor.clear.cgColor
-        progressLayer.strokeColor = NSColor.controlAccentColor.cgColor
-        progressLayer.lineWidth = lineWidth
-        progressLayer.lineCap = .round
-        // Start at 12 o'clock and drain clockwise.
-        progressLayer.transform = CATransform3DMakeRotation(-.pi / 2, 0, 0, 1)
-        progressLayer.strokeEnd = 1
-        layer?.addSublayer(progressLayer)
-    }
-
-    private func setUpLabel() {
-        numberLabel.font = NSFont.monospacedDigitSystemFont(ofSize: 40, weight: .bold)
-        numberLabel.textColor = .labelColor
-        numberLabel.alignment = .center
-        numberLabel.frame = bounds
-        addSubview(numberLabel)
-    }
-
-    func drain(over seconds: TimeInterval) {
-        let anim = CABasicAnimation(keyPath: "strokeEnd")
-        anim.fromValue = 1
-        anim.toValue = 0
-        anim.duration = seconds
-        anim.timingFunction = CAMediaTimingFunction(name: .linear)
-        anim.fillMode = .forwards
-        anim.isRemovedOnCompletion = false
-        progressLayer.add(anim, forKey: "drain")
-    }
-
-    func setNumber(_ n: Int) {
-        numberLabel.stringValue = n > 0 ? "\(n)" : "📸"
-    }
 }
