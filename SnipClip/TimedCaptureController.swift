@@ -8,7 +8,7 @@ import UniformTypeIdentifiers
 final class TimedCaptureController {
     static let shared = TimedCaptureController()
 
-    private var hud: TerminalHUDWindow?
+    private var hud: CountdownHUDWindow?
     private var timer: Timer?
     private var isArmed = false
 
@@ -56,7 +56,7 @@ final class TimedCaptureController {
         isArmed = true
 
         let screen = TimedCaptureController.targetScreen()
-        let win = TerminalHUDWindow(screen: screen, destination: destination)
+        let win = CountdownHUDWindow(screen: screen, destination: destination, totalSeconds: delay)
         win.onCancel = { [weak self] in self?.cancel() }
         win.updateCount(delay)
         win.makeKeyAndOrderFront(nil)
@@ -130,14 +130,14 @@ final class TimedCaptureController {
     }
 }
 
-// MARK: - Terminal-style HUD
+// MARK: - Countdown HUD
 
-private final class TerminalHUDWindow: NSWindow {
+private final class CountdownHUDWindow: NSWindow {
     var onCancel: (() -> Void)?
-    private let countLabel = NSTextField(labelWithString: "")
+    private let ring = CountdownRingView(frame: NSRect(x: 0, y: 0, width: 120, height: 120))
 
-    init(screen: NSScreen, destination: URL) {
-        let size = NSSize(width: 400, height: 130)
+    init(screen: NSScreen, destination: URL, totalSeconds: Int) {
+        let size = NSSize(width: 260, height: 250)
         super.init(
             contentRect: NSRect(origin: .zero, size: size),
             styleMask: [.borderless],
@@ -157,47 +157,57 @@ private final class TerminalHUDWindow: NSWindow {
         setFrameOrigin(origin)
 
         buildUI(size: size, destination: destination)
+        ring.drain(over: TimeInterval(totalSeconds))
+
+        // Gentle pop-in rather than appearing abruptly.
+        alphaValue = 0
+        setFrame(frame.insetBy(dx: 6, dy: 6), display: false)
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.18
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            animator().alphaValue = 1
+            animator().setFrame(NSRect(origin: origin, size: size), display: true)
+        }
     }
 
     private func buildUI(size: NSSize, destination: URL) {
-        let root = NSView(frame: NSRect(origin: .zero, size: size))
-        root.wantsLayer = true
-        root.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.92).cgColor
-        root.layer?.cornerRadius = 10
-        root.layer?.borderWidth = 1
-        root.layer?.borderColor = NSColor(calibratedWhite: 1, alpha: 0.08).cgColor
-        contentView = root
+        let blur = NSVisualEffectView(frame: NSRect(origin: .zero, size: size))
+        blur.material = .popover
+        blur.blendingMode = .behindWindow
+        blur.state = .active
+        blur.wantsLayer = true
+        blur.layer?.cornerRadius = 18
+        blur.layer?.masksToBounds = true
+        contentView = blur
 
-        let mono = NSFont.monospacedSystemFont(ofSize: 13, weight: .medium)
-        let green = NSColor(calibratedRed: 0.35, green: 0.95, blue: 0.45, alpha: 1)
+        let title = NSTextField(labelWithString: "Full-Screen Capture")
+        title.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
+        title.textColor = .labelColor
+        title.alignment = .center
+        title.frame = NSRect(x: 0, y: size.height - 40, width: size.width, height: 18)
+        blur.addSubview(title)
 
-        let promptLine = NSTextField(labelWithString: "$ snipclip --capture --full-screen")
-        promptLine.font = mono
-        promptLine.textColor = green
-        promptLine.frame = NSRect(x: 20, y: 84, width: size.width - 40, height: 20)
-        root.addSubview(promptLine)
+        ring.frame = NSRect(x: (size.width - 120) / 2, y: 70, width: 120, height: 120)
+        blur.addSubview(ring)
 
-        countLabel.font = mono
-        countLabel.textColor = green
-        countLabel.frame = NSRect(x: 20, y: 58, width: size.width - 40, height: 20)
-        root.addSubview(countLabel)
-
-        let destLine = NSTextField(labelWithString: "→ \(destination.lastPathComponent)")
-        destLine.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
-        destLine.textColor = NSColor(calibratedWhite: 1, alpha: 0.5)
+        let destLine = NSTextField(labelWithString: destination.lastPathComponent)
+        destLine.font = NSFont.systemFont(ofSize: 11, weight: .regular)
+        destLine.textColor = .secondaryLabelColor
+        destLine.alignment = .center
         destLine.lineBreakMode = .byTruncatingMiddle
-        destLine.frame = NSRect(x: 20, y: 34, width: size.width - 40, height: 16)
-        root.addSubview(destLine)
+        destLine.frame = NSRect(x: 16, y: 42, width: size.width - 32, height: 16)
+        blur.addSubview(destLine)
 
-        let hint = NSTextField(labelWithString: "press esc to cancel")
-        hint.font = NSFont.monospacedSystemFont(ofSize: 10, weight: .regular)
-        hint.textColor = NSColor(calibratedWhite: 1, alpha: 0.35)
-        hint.frame = NSRect(x: 20, y: 14, width: size.width - 40, height: 14)
-        root.addSubview(hint)
+        let hint = NSTextField(labelWithString: "Press Esc to Cancel")
+        hint.font = NSFont.systemFont(ofSize: 10, weight: .regular)
+        hint.textColor = .tertiaryLabelColor
+        hint.alignment = .center
+        hint.frame = NSRect(x: 0, y: 18, width: size.width, height: 14)
+        blur.addSubview(hint)
     }
 
     func updateCount(_ n: Int) {
-        countLabel.stringValue = n > 0 ? "> capturing in \(n)…▊" : "> capturing now▊"
+        ring.setNumber(n)
     }
 
     override func keyDown(with event: NSEvent) {
@@ -206,4 +216,67 @@ private final class TerminalHUDWindow: NSWindow {
     }
 
     override var canBecomeKey: Bool { true }
+}
+
+/// A circular progress ring that drains smoothly over the countdown's full
+/// duration, with the current whole-second count in bold in the center.
+private final class CountdownRingView: NSView {
+    private let trackLayer = CAShapeLayer()
+    private let progressLayer = CAShapeLayer()
+    private let numberLabel = NSTextField(labelWithString: "")
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        setUpLayers()
+        setUpLabel()
+    }
+    required init?(coder: NSCoder) { fatalError() }
+
+    private func setUpLayers() {
+        let lineWidth: CGFloat = 7
+        let path = CGPath(
+            ellipseIn: bounds.insetBy(dx: lineWidth / 2, dy: lineWidth / 2),
+            transform: nil
+        )
+
+        trackLayer.path = path
+        trackLayer.fillColor = NSColor.clear.cgColor
+        trackLayer.strokeColor = NSColor(calibratedWhite: 0.5, alpha: 0.2).cgColor
+        trackLayer.lineWidth = lineWidth
+        layer?.addSublayer(trackLayer)
+
+        progressLayer.path = path
+        progressLayer.fillColor = NSColor.clear.cgColor
+        progressLayer.strokeColor = NSColor.controlAccentColor.cgColor
+        progressLayer.lineWidth = lineWidth
+        progressLayer.lineCap = .round
+        // Start at 12 o'clock and drain clockwise.
+        progressLayer.transform = CATransform3DMakeRotation(-.pi / 2, 0, 0, 1)
+        progressLayer.strokeEnd = 1
+        layer?.addSublayer(progressLayer)
+    }
+
+    private func setUpLabel() {
+        numberLabel.font = NSFont.monospacedDigitSystemFont(ofSize: 40, weight: .bold)
+        numberLabel.textColor = .labelColor
+        numberLabel.alignment = .center
+        numberLabel.frame = bounds
+        addSubview(numberLabel)
+    }
+
+    func drain(over seconds: TimeInterval) {
+        let anim = CABasicAnimation(keyPath: "strokeEnd")
+        anim.fromValue = 1
+        anim.toValue = 0
+        anim.duration = seconds
+        anim.timingFunction = CAMediaTimingFunction(name: .linear)
+        anim.fillMode = .forwards
+        anim.isRemovedOnCompletion = false
+        progressLayer.add(anim, forKey: "drain")
+    }
+
+    func setNumber(_ n: Int) {
+        numberLabel.stringValue = n > 0 ? "\(n)" : "📸"
+    }
 }
