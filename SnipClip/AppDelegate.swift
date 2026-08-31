@@ -42,6 +42,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(recent)
         recentCapturesItem = recent
 
+        let timed = NSMenuItem(title: "Timed Full-Screen Capture", action: nil, keyEquivalent: "")
+        let timedSubmenu = NSMenu()
+        for seconds in [3, 5, 10] {
+            let item = NSMenuItem(title: "\(seconds) Second Delay…",
+                                  action: #selector(startTimedCapture(_:)), keyEquivalent: "")
+            item.target = self
+            item.tag = seconds
+            timedSubmenu.addItem(item)
+        }
+        timed.submenu = timedSubmenu
+        menu.addItem(timed)
+
         menu.addItem(.separator())
         let prefsItem = NSMenuItem(title: "Preferences…", action: #selector(showPreferences), keyEquivalent: ",")
         prefsItem.target = self
@@ -143,6 +155,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             SelectionOverlayController.shared.show()
         }
+    }
+
+    @objc private func startTimedCapture(_ sender: NSMenuItem) {
+        guard PurchaseManager.shared.canUse else {
+            PaywallController.shared.show()
+            return
+        }
+        guard CGPreflightScreenCaptureAccess() else {
+            requestScreenRecordingAccess()
+            return
+        }
+        TimedCaptureController.shared.start(delay: sender.tag)
     }
 
     /// Always surfaces visible feedback — never fails silently, even if the
