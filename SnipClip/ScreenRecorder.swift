@@ -4,7 +4,7 @@ import AVFoundation
 import CoreMedia
 import CoreVideo
 
-/// Very basic full-screen video recording: start, stop, write an .mov to a
+/// Very basic full-screen video recording: start, stop, write an .mp4 to a
 /// caller-supplied URL. Captures the display under the pointer, no audio.
 final class ScreenRecorder: NSObject {
     static let shared = ScreenRecorder()
@@ -55,7 +55,7 @@ final class ScreenRecorder: NSObject {
                 config.showsCursor = true
                 config.pixelFormat = kCVPixelFormatType_32BGRA
 
-                let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
+                let writer = try AVAssetWriter(outputURL: url, fileType: .mp4)
                 let videoSettings: [String: Any] = [
                     AVVideoCodecKey: AVVideoCodecType.h264,
                     AVVideoWidthKey: width,

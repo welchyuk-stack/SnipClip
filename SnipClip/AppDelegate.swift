@@ -223,7 +223,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss"
-        let destination = folder.appendingPathComponent("SnipClip Recording \(formatter.string(from: Date())).mov")
+        let destination = folder.appendingPathComponent("SnipClip Recording \(formatter.string(from: Date())).mp4")
 
         ScreenRecorder.shared.start(to: destination) { [weak self] error in
             guard let self else { return }
