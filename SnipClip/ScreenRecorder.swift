@@ -97,9 +97,12 @@ final class ScreenRecorder: NSObject {
             await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
                 writer.finishWriting { continuation.resume() }
             }
+            let writeError = writer.status == .failed ? writer.error : nil
             self.writer = nil
             self.videoInput = nil
-            await MainActor.run { completion(outputURL, nil) }
+            await MainActor.run {
+                completion(writeError == nil ? outputURL : nil, writeError)
+            }
         }
     }
 
@@ -114,6 +117,16 @@ extension ScreenRecorder: SCStreamOutput {
     func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
         guard type == .screen, isRecording, sampleBuffer.isValid,
               let writer, let videoInput else { return }
+
+        // ScreenCaptureKit also delivers status-only sample buffers (idle,
+        // started, suspended, stopped) alongside real frames — these carry no
+        // usable image data. Using one to start the writer's session produces
+        // a file that stricter muxers (MP4 especially) refuse to open.
+        guard let attachments = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, createIfNecessary: false) as? [[SCStreamFrameInfo: Any]],
+              let statusRaw = attachments.first?[.status] as? Int,
+              let status = SCFrameStatus(rawValue: statusRaw),
+              status == .complete
+        else { return }
 
         if writer.status == .unknown {
             writer.startWriting()

@@ -15,6 +15,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NotificationCenter.default.addObserver(self,
             selector: #selector(startCapture), name: .snipHotkeyFired, object: nil)
         NotificationCenter.default.addObserver(self,
+            selector: #selector(toggleRecording), name: .snipRecordingHotkeyFired, object: nil)
+        NotificationCenter.default.addObserver(self,
             selector: #selector(shortcutChanged), name: .snipShortcutChanged, object: nil)
         HotkeyManager.shared.start()
         PurchaseManager.shared.start()
@@ -60,7 +62,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         timed.submenu = timedSubmenu
         menu.addItem(timed)
 
-        let recording = NSMenuItem(title: "Start Screen Recording", action: #selector(toggleRecording), keyEquivalent: "")
+        let recording = NSMenuItem(title: recordingIdleTitle(), action: #selector(toggleRecording), keyEquivalent: "")
         recording.target = self
         menu.addItem(recording)
         recordingItem = recording
@@ -83,11 +85,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func captureTitle() -> String {
-        "Capture Area  \(HotkeyManager.shared.displayString)"
+        "Capture Area  \(HotkeyManager.shared.displayString(for: .capture))"
+    }
+
+    private func recordingIdleTitle() -> String {
+        "Start Screen Recording  \(HotkeyManager.shared.displayString(for: .toggleRecording))"
     }
 
     @objc private func shortcutChanged() {
         captureItem.title = captureTitle()
+        // Only touch the recording item's title when idle — while recording
+        // it's showing the live elapsed-time counter instead.
+        if !ScreenRecorder.shared.isRecording {
+            recordingItem.title = recordingIdleTitle()
+        }
     }
 
     // MARK: - Recent Captures
@@ -257,7 +268,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Red icon + a live "mm:ss" elapsed time, both in the menu bar itself
     /// and in the menu item — a basic but visible recording indicator.
     private func beginRecordingIndicator() {
-        statusButton?.contentTintColor = .systemRed
+        // A plain sRGB value rather than the dynamic .systemRed catalog color —
+        // the latter can resolve oddly (near-black) against the menu bar's
+        // vibrancy when used as a status item's contentTintColor.
+        statusButton?.contentTintColor = NSColor(srgbRed: 1.0, green: 0.23, blue: 0.19, alpha: 1.0)
         recordingStart = Date()
         updateRecordingTitle()
 
@@ -274,7 +288,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         recordingStart = nil
         statusButton?.contentTintColor = nil
         statusButton?.title = ""
-        recordingItem.title = "Start Screen Recording"
+        recordingItem.title = recordingIdleTitle()
     }
 
     private func updateRecordingTitle() {

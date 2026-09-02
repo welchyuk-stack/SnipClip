@@ -1,5 +1,6 @@
 import AppKit
 import Carbon.HIToolbox
+import ServiceManagement
 
 // MARK: - Controller
 
@@ -30,12 +31,14 @@ final class PreferencesController: NSObject, NSWindowDelegate {
 // MARK: - Window
 
 final class PreferencesWindow: NSWindow {
-    private var recorder: ShortcutRecorderView!
+    private var captureRecorder: ShortcutRecorderView!
+    private var recordingRecorder: ShortcutRecorderView!
     private var folderLabel: NSTextField!
+    private var loginCheckbox: NSButton!
 
     init() {
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 340, height: 300),
+            contentRect: NSRect(x: 0, y: 0, width: 380, height: 420),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -47,56 +50,87 @@ final class PreferencesWindow: NSWindow {
     }
 
     private func buildUI() {
-        let root = NSView(frame: NSRect(x: 0, y: 0, width: 340, height: 300))
+        let root = NSView(frame: NSRect(x: 0, y: 0, width: 380, height: 420))
         contentView = root
 
-        let label = NSTextField(labelWithString: "Capture shortcut")
-        label.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
-        label.frame = NSRect(x: 24, y: 248, width: 200, height: 20)
-        root.addSubview(label)
+        // ── Keyboard shortcuts ──
+        let shortcutsTitle = NSTextField(labelWithString: "Keyboard Shortcuts")
+        shortcutsTitle.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
+        shortcutsTitle.frame = NSRect(x: 24, y: 382, width: 300, height: 18)
+        root.addSubview(shortcutsTitle)
+
+        let captureLabel = NSTextField(labelWithString: "Capture")
+        captureLabel.font = NSFont.systemFont(ofSize: 12)
+        captureLabel.frame = NSRect(x: 24, y: 344, width: 70, height: 28)
+        captureLabel.alignment = .left
+        root.addSubview(captureLabel)
+
+        let capRec = ShortcutRecorderView(frame: NSRect(x: 100, y: 344, width: 120, height: 28), slot: .capture)
+        capRec.onChange = { NotificationCenter.default.post(name: .snipShortcutChanged, object: nil) }
+        root.addSubview(capRec)
+        captureRecorder = capRec
+
+        let captureResetBtn = NSButton(title: "Reset", target: self, action: #selector(resetCaptureTapped))
+        captureResetBtn.bezelStyle = .rounded
+        captureResetBtn.frame = NSRect(x: 230, y: 344, width: 80, height: 28)
+        root.addSubview(captureResetBtn)
+
+        let recordingLabel = NSTextField(labelWithString: "Recording")
+        recordingLabel.font = NSFont.systemFont(ofSize: 12)
+        recordingLabel.frame = NSRect(x: 24, y: 306, width: 70, height: 28)
+        root.addSubview(recordingLabel)
+
+        let recRec = ShortcutRecorderView(frame: NSRect(x: 100, y: 306, width: 120, height: 28), slot: .toggleRecording)
+        recRec.onChange = { NotificationCenter.default.post(name: .snipShortcutChanged, object: nil) }
+        root.addSubview(recRec)
+        recordingRecorder = recRec
+
+        let recordingResetBtn = NSButton(title: "Reset", target: self, action: #selector(resetRecordingTapped))
+        recordingResetBtn.bezelStyle = .rounded
+        recordingResetBtn.frame = NSRect(x: 230, y: 306, width: 80, height: 28)
+        root.addSubview(recordingResetBtn)
 
         let hint = NSTextField(wrappingLabelWithString:
-            "Click the box, then press a new key combination. Choose something unlikely to clash with other apps' shortcuts.")
+            "Click a box, then press a new key combination. Choose something unlikely to clash with other apps' shortcuts.")
         hint.font = NSFont.systemFont(ofSize: 11)
         hint.textColor = .secondaryLabelColor
-        hint.frame = NSRect(x: 24, y: 196, width: 292, height: 40)
+        hint.frame = NSRect(x: 24, y: 260, width: 332, height: 32)
         root.addSubview(hint)
 
-        let rec = ShortcutRecorderView(frame: NSRect(x: 24, y: 160, width: 160, height: 28))
-        rec.onChange = { [weak self] keyCode, modifiers in
-            HotkeyManager.shared.update(keyCode: keyCode, modifiers: modifiers)
-            self?.recorder.refresh()
-            NotificationCenter.default.post(name: .snipShortcutChanged, object: nil)
-        }
-        root.addSubview(rec)
-        recorder = rec
+        let sep1 = NSBox(frame: NSRect(x: 24, y: 243, width: 332, height: 1))
+        sep1.boxType = .separator
+        root.addSubview(sep1)
 
-        let resetBtn = NSButton(title: "Reset to ⌘⇧S", target: self, action: #selector(resetTapped))
-        resetBtn.bezelStyle = .rounded
-        resetBtn.frame = NSRect(x: 196, y: 158, width: 120, height: 28)
-        root.addSubview(resetBtn)
-
-        let sep = NSBox(frame: NSRect(x: 24, y: 144, width: 292, height: 1))
-        sep.boxType = .separator
-        root.addSubview(sep)
-
-        let folderTitle = NSTextField(labelWithString: "Recordings folder")
+        // ── Recordings folder ──
+        let folderTitle = NSTextField(labelWithString: "Recordings Folder")
         folderTitle.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
-        folderTitle.frame = NSRect(x: 24, y: 112, width: 200, height: 20)
+        folderTitle.frame = NSRect(x: 24, y: 211, width: 300, height: 18)
         root.addSubview(folderTitle)
 
         let path = NSTextField(labelWithString: RecordingFolderManager.shared.displayPath)
         path.font = NSFont.systemFont(ofSize: 11)
         path.textColor = .secondaryLabelColor
         path.lineBreakMode = .byTruncatingMiddle
-        path.frame = NSRect(x: 24, y: 90, width: 292, height: 16)
+        path.frame = NSRect(x: 24, y: 187, width: 332, height: 16)
         root.addSubview(path)
         folderLabel = path
 
         let chooseBtn = NSButton(title: "Choose…", target: self, action: #selector(chooseFolderTapped))
         chooseBtn.bezelStyle = .rounded
-        chooseBtn.frame = NSRect(x: 24, y: 56, width: 100, height: 28)
+        chooseBtn.frame = NSRect(x: 24, y: 149, width: 100, height: 28)
         root.addSubview(chooseBtn)
+
+        let sep2 = NSBox(frame: NSRect(x: 24, y: 132, width: 332, height: 1))
+        sep2.boxType = .separator
+        root.addSubview(sep2)
+
+        // ── Launch at login ──
+        let login = NSButton(checkboxWithTitle: "Launch SnipClip at Login",
+                             target: self, action: #selector(loginToggled))
+        login.frame = NSRect(x: 24, y: 98, width: 300, height: 20)
+        login.state = SMAppService.mainApp.status == .enabled ? .on : .off
+        root.addSubview(login)
+        loginCheckbox = login
 
         let footer = NSTextField(labelWithString: "SnipClip v1.3.1")
         footer.font = NSFont.systemFont(ofSize: 10)
@@ -105,9 +139,15 @@ final class PreferencesWindow: NSWindow {
         root.addSubview(footer)
     }
 
-    @objc private func resetTapped() {
-        HotkeyManager.shared.resetToDefault()
-        recorder.refresh()
+    @objc private func resetCaptureTapped() {
+        HotkeyManager.shared.resetToDefault(.capture)
+        captureRecorder.refresh()
+        NotificationCenter.default.post(name: .snipShortcutChanged, object: nil)
+    }
+
+    @objc private func resetRecordingTapped() {
+        HotkeyManager.shared.resetToDefault(.toggleRecording)
+        recordingRecorder.refresh()
         NotificationCenter.default.post(name: .snipShortcutChanged, object: nil)
     }
 
@@ -115,6 +155,20 @@ final class PreferencesWindow: NSWindow {
         RecordingFolderManager.shared.choose { [weak self] url in
             guard url != nil else { return }
             self?.folderLabel.stringValue = RecordingFolderManager.shared.displayPath
+        }
+    }
+
+    @objc private func loginToggled() {
+        do {
+            if loginCheckbox.state == .on {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+        } catch {
+            // Revert the checkbox to match reality and tell the user why.
+            loginCheckbox.state = SMAppService.mainApp.status == .enabled ? .on : .off
+            NSAlert(error: error).runModal()
         }
     }
 
@@ -128,15 +182,17 @@ extension Notification.Name {
 // MARK: - Shortcut recorder control
 
 /// A click-to-record shortcut field. Click it, then press any key combo
-/// (with at least one modifier) to set it as SnipClip's capture shortcut.
+/// (with at least one modifier) to set it as the given slot's shortcut.
 final class ShortcutRecorderView: NSView {
-    var onChange: ((_ keyCode: UInt32, _ modifiers: UInt32) -> Void)?
+    var onChange: (() -> Void)?
+    private let slot: HotkeyManager.Slot
 
     private var isRecording = false {
         didSet { needsDisplay = true }
     }
 
-    override init(frame: NSRect) {
+    init(frame: NSRect, slot: HotkeyManager.Slot) {
+        self.slot = slot
         super.init(frame: frame)
         wantsLayer = true
         let click = NSClickGestureRecognizer(target: self, action: #selector(startRecording))
@@ -162,7 +218,7 @@ final class ShortcutRecorderView: NSView {
         path.lineWidth = isRecording ? 2 : 1
         path.stroke()
 
-        let text = isRecording ? "Press a key combination…" : HotkeyManager.shared.displayString
+        let text = isRecording ? "Press a key combination…" : HotkeyManager.shared.displayString(for: slot)
         let attrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 13, weight: .medium),
             .foregroundColor: isRecording ? NSColor.controlAccentColor : NSColor.labelColor,
@@ -190,7 +246,8 @@ final class ShortcutRecorderView: NSView {
         if flags.contains(.shift)   { carbonMods |= UInt32(shiftKey) }
 
         isRecording = false
-        onChange?(UInt32(event.keyCode), carbonMods)
+        HotkeyManager.shared.update(slot, keyCode: UInt32(event.keyCode), modifiers: carbonMods)
+        onChange?()
     }
 
     override var acceptsFirstResponder: Bool { true }

@@ -1,36 +1,67 @@
 import AppKit
 import Carbon.HIToolbox
 
-/// Wraps the Carbon global hotkey (no Accessibility permission needed) so the
-/// shortcut can be changed at runtime instead of being hardcoded to ⌘⇧S —
-/// which otherwise silently steals "Save As" from any frontmost app that uses
-/// the same combo while SnipClip is running.
+/// Wraps Carbon global hotkeys (no Accessibility permission needed) so
+/// shortcuts can be changed at runtime instead of being hardcoded — which
+/// would otherwise silently steal that combo from any frontmost app that
+/// uses it while SnipClip is running.
+///
+/// Supports multiple independent shortcut slots (capture, toggle recording)
+/// sharing one Carbon event handler, dispatched by hotkey ID.
 final class HotkeyManager {
     static let shared = HotkeyManager()
 
-    private var hotKeyRef: EventHotKeyRef?
-    private var eventHandlerRef: EventHandlerRef?
+    enum Slot: UInt32, CaseIterable {
+        case capture = 1
+        case toggleRecording = 2
 
-    private let keyCodeKey = "snipclip_hotkey_keycode"
-    private let modifiersKey = "snipclip_hotkey_modifiers"
-
-    /// Default: ⌘⇧S
-    private let defaultKeyCode = UInt32(kVK_ANSI_S)
-    private let defaultModifiers = UInt32(cmdKey | shiftKey)
-
-    var keyCode: UInt32 {
-        let stored = UserDefaults.standard.object(forKey: keyCodeKey) as? Int
-        return stored.map(UInt32.init) ?? defaultKeyCode
+        var defaultKeyCode: UInt32 {
+            switch self {
+            case .capture: return UInt32(kVK_ANSI_S)
+            case .toggleRecording: return UInt32(kVK_ANSI_R)
+            }
+        }
+        var defaultModifiers: UInt32 {
+            switch self {
+            case .capture, .toggleRecording: return UInt32(cmdKey | shiftKey)
+            }
+        }
+        var notification: Notification.Name {
+            switch self {
+            case .capture: return .snipHotkeyFired
+            case .toggleRecording: return .snipRecordingHotkeyFired
+            }
+        }
+        fileprivate var keyCodeDefaultsKey: String {
+            switch self {
+            case .capture: return "snipclip_hotkey_keycode"
+            case .toggleRecording: return "snipclip_hotkey_record_keycode"
+            }
+        }
+        fileprivate var modifiersDefaultsKey: String {
+            switch self {
+            case .capture: return "snipclip_hotkey_modifiers"
+            case .toggleRecording: return "snipclip_hotkey_record_modifiers"
+            }
+        }
     }
 
-    var modifiers: UInt32 {
-        let stored = UserDefaults.standard.object(forKey: modifiersKey) as? Int
-        return stored.map(UInt32.init) ?? defaultModifiers
+    private var hotKeyRefs: [Slot: EventHotKeyRef] = [:]
+    private var eventHandlerRef: EventHandlerRef?
+
+    func keyCode(for slot: Slot) -> UInt32 {
+        let stored = UserDefaults.standard.object(forKey: slot.keyCodeDefaultsKey) as? Int
+        return stored.map(UInt32.init) ?? slot.defaultKeyCode
+    }
+
+    func modifiers(for slot: Slot) -> UInt32 {
+        let stored = UserDefaults.standard.object(forKey: slot.modifiersDefaultsKey) as? Int
+        return stored.map(UInt32.init) ?? slot.defaultModifiers
     }
 
     /// Human-readable form, e.g. "⌘⇧S", for menu items and the preferences UI.
-    var displayString: String {
-        Self.displayString(keyCode: keyCode, carbonModifiers: modifiers)
+    func displayString(for slot: Slot) -> String {
+        Self.displayString(keyCode: keyCode(for: slot), carbonModifiers: modifiers(for: slot))
     }
 
     static func displayString(keyCode: UInt32, carbonModifiers: UInt32) -> String {
@@ -44,7 +75,7 @@ final class HotkeyManager {
     }
 
     /// Minimal keyCode → letter/number mapping covering the keys people
-    /// actually pick for a capture shortcut.
+    /// actually pick for a shortcut.
     private static func keyCodeToString(_ keyCode: UInt32) -> String {
         let map: [UInt32: String] = [
             0: "A", 11: "B", 8: "C", 2: "D", 14: "E", 3: "F", 5: "G", 4: "H",
@@ -59,58 +90,61 @@ final class HotkeyManager {
     private init() {}
 
     func start() {
-        NotificationCenter.default.addObserver(self,
-            selector: #selector(relayNotification),
-            name: .snipHotkeyFiredInternal, object: nil)
-        register()
+        for slot in Slot.allCases { register(slot) }
     }
 
-    /// Changes the shortcut, persists it, and re-registers immediately.
-    func update(keyCode: UInt32, modifiers: UInt32) {
-        UserDefaults.standard.set(Int(keyCode), forKey: keyCodeKey)
-        UserDefaults.standard.set(Int(modifiers), forKey: modifiersKey)
-        register()
+    /// Changes a shortcut, persists it, and re-registers immediately.
+    func update(_ slot: Slot, keyCode: UInt32, modifiers: UInt32) {
+        UserDefaults.standard.set(Int(keyCode), forKey: slot.keyCodeDefaultsKey)
+        UserDefaults.standard.set(Int(modifiers), forKey: slot.modifiersDefaultsKey)
+        register(slot)
     }
 
-    func resetToDefault() {
-        UserDefaults.standard.removeObject(forKey: keyCodeKey)
-        UserDefaults.standard.removeObject(forKey: modifiersKey)
-        register()
+    func resetToDefault(_ slot: Slot) {
+        UserDefaults.standard.removeObject(forKey: slot.keyCodeDefaultsKey)
+        UserDefaults.standard.removeObject(forKey: slot.modifiersDefaultsKey)
+        register(slot)
     }
 
-    private func register() {
-        if let ref = hotKeyRef { UnregisterEventHotKey(ref); hotKeyRef = nil }
+    private func installEventHandlerIfNeeded() {
+        guard eventHandlerRef == nil else { return }
+        var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard),
+                                 eventKind: UInt32(kEventHotKeyPressed))
+        let installStatus = InstallEventHandler(GetApplicationEventTarget(), { _, event, _ -> OSStatus in
+            var hkID = EventHotKeyID()
+            let status = GetEventParameter(event, EventParamName(kEventParamDirectObject),
+                                            EventParamType(typeEventHotKeyID), nil,
+                                            MemoryLayout<EventHotKeyID>.size, nil, &hkID)
+            guard status == noErr, let slot = HotkeyManager.Slot(rawValue: hkID.id) else { return noErr }
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: slot.notification, object: nil)
+            }
+            return noErr
+        }, 1, &spec, nil, &eventHandlerRef)
+        assert(installStatus == noErr, "InstallEventHandler failed: \(installStatus)")
+    }
 
-        if eventHandlerRef == nil {
-            var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard),
-                                     eventKind: UInt32(kEventHotKeyPressed))
-            // Dispatch to main thread: Carbon events are typically delivered on the
-            // main thread via GetApplicationEventTarget, but this guarantees it.
-            let installStatus = InstallEventHandler(GetApplicationEventTarget(), { _, _, _ -> OSStatus in
-                DispatchQueue.main.async {
-                    NotificationCenter.default.post(name: .snipHotkeyFiredInternal, object: nil)
-                }
-                return noErr
-            }, 1, &spec, nil, &eventHandlerRef)
-            assert(installStatus == noErr, "InstallEventHandler failed: \(installStatus)")
-        }
+    private func register(_ slot: Slot) {
+        installEventHandlerIfNeeded()
 
-        var hkID = EventHotKeyID(); hkID.signature = 0x534E4950; hkID.id = 1
-        let regStatus = RegisterEventHotKey(keyCode, modifiers, hkID, GetApplicationEventTarget(), 0, &hotKeyRef)
+        if let ref = hotKeyRefs[slot] { UnregisterEventHotKey(ref); hotKeyRefs[slot] = nil }
+
+        var hkID = EventHotKeyID(); hkID.signature = 0x534E4950; hkID.id = slot.rawValue
+        var ref: EventHotKeyRef?
+        let regStatus = RegisterEventHotKey(keyCode(for: slot), modifiers(for: slot), hkID,
+                                            GetApplicationEventTarget(), 0, &ref)
         assert(regStatus == noErr, "RegisterEventHotKey failed: \(regStatus)")
+        hotKeyRefs[slot] = ref
     }
 
     func stop() {
-        if let ref = hotKeyRef { UnregisterEventHotKey(ref); hotKeyRef = nil }
+        for ref in hotKeyRefs.values { UnregisterEventHotKey(ref) }
+        hotKeyRefs.removeAll()
         if let ref = eventHandlerRef { RemoveEventHandler(ref); eventHandlerRef = nil }
-    }
-
-    @objc private func relayNotification() {
-        NotificationCenter.default.post(name: .snipHotkeyFired, object: nil)
     }
 }
 
 extension Notification.Name {
     static let snipHotkeyFired = Notification.Name("snipHotkeyFired")
-    fileprivate static let snipHotkeyFiredInternal = Notification.Name("snipHotkeyFiredInternal")
+    static let snipRecordingHotkeyFired = Notification.Name("snipRecordingHotkeyFired")
 }
