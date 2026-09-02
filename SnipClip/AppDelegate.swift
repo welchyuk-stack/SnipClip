@@ -6,6 +6,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var recentCapturesItem: NSMenuItem!
     private var recordingItem: NSMenuItem!
     private var recordingScopedFolder: URL?
+    private var statusButton: NSStatusBarButton?
+    private var recordingStart: Date?
+    private var recordingTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupStatusItem()
@@ -30,6 +33,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             btn.image = NSImage(systemSymbolName: "camera.viewfinder",
                                 accessibilityDescription: "SnipClip")
             btn.image?.isTemplate = true
+            statusButton = btn
         }
 
         let menu = NSMenu()
@@ -229,18 +233,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 return
             }
             self.recordingScopedFolder = scoped ? folder : nil
-            self.recordingItem.title = "Stop Screen Recording"
+            self.beginRecordingIndicator()
         }
     }
 
     private func stopRecording() {
+        endRecordingIndicator()
         ScreenRecorder.shared.stop { [weak self] url, error in
             guard let self else { return }
             if let folder = self.recordingScopedFolder {
                 folder.stopAccessingSecurityScopedResource()
                 self.recordingScopedFolder = nil
             }
-            self.recordingItem.title = "Start Screen Recording"
 
             if let error {
                 NSAlert(error: error).runModal()
@@ -248,6 +252,37 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 NSWorkspace.shared.activateFileViewerSelecting([url])
             }
         }
+    }
+
+    /// Red icon + a live "mm:ss" elapsed time, both in the menu bar itself
+    /// and in the menu item — a basic but visible recording indicator.
+    private func beginRecordingIndicator() {
+        statusButton?.contentTintColor = .systemRed
+        recordingStart = Date()
+        updateRecordingTitle()
+
+        let t = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+            self?.updateRecordingTitle()
+        }
+        RunLoop.main.add(t, forMode: .common)
+        recordingTimer = t
+    }
+
+    private func endRecordingIndicator() {
+        recordingTimer?.invalidate()
+        recordingTimer = nil
+        recordingStart = nil
+        statusButton?.contentTintColor = nil
+        statusButton?.title = ""
+        recordingItem.title = "Start Screen Recording"
+    }
+
+    private func updateRecordingTitle() {
+        guard let start = recordingStart else { return }
+        let elapsed = Int(Date().timeIntervalSince(start))
+        let text = String(format: "%d:%02d", elapsed / 60, elapsed % 60)
+        statusButton?.title = " \(text)"
+        recordingItem.title = "Stop Screen Recording (\(text))"
     }
 
     /// Always surfaces visible feedback — never fails silently, even if the
