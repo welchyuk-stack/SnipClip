@@ -132,7 +132,7 @@ final class PreferencesWindow: NSWindow {
         root.addSubview(login)
         loginCheckbox = login
 
-        let footer = NSTextField(labelWithString: "SnipClip v1.3.1")
+        let footer = NSTextField(labelWithString: "SnipClip v1.4")
         footer.font = NSFont.systemFont(ofSize: 10)
         footer.textColor = .tertiaryLabelColor
         footer.frame = NSRect(x: 24, y: 16, width: 200, height: 16)
