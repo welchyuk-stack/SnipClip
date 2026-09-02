@@ -32,9 +32,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let btn = statusItem.button {
-            btn.image = NSImage(systemSymbolName: "camera.viewfinder",
-                                accessibilityDescription: "SnipClip")
-            btn.image?.isTemplate = true
+            btn.image = AppDelegate.idleIcon
             statusButton = btn
         }
 
@@ -252,26 +250,50 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         endRecordingIndicator()
         ScreenRecorder.shared.stop { [weak self] url, error in
             guard let self else { return }
-            if let folder = self.recordingScopedFolder {
-                folder.stopAccessingSecurityScopedResource()
-                self.recordingScopedFolder = nil
-            }
 
+            // Reveal the file *before* releasing the folder's security scope —
+            // Finder needs that sandbox extension still held to open the path
+            // at all, otherwise it fails with "client lacks entitlements".
+            // activateFileViewerSelecting hands off to Finder over an Apple
+            // Event and returns immediately, so give it a moment to actually
+            // act on it before we let the scope go.
             if let error {
                 NSAlert(error: error).runModal()
             } else if let url {
                 NSWorkspace.shared.activateFileViewerSelecting([url])
             }
+
+            if let folder = self.recordingScopedFolder {
+                self.recordingScopedFolder = nil
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    folder.stopAccessingSecurityScopedResource()
+                }
+            }
         }
     }
+
+    /// Full-color icon in place of the template one, since a status item's
+    /// contentTintColor has proven unreliable — it rendered as near-black on
+    /// test hardware regardless of the color used. Swapping the actual image
+    /// for a genuinely non-template one sidesteps that entirely.
+    private static let idleIcon: NSImage = {
+        let img = NSImage(systemSymbolName: "camera.viewfinder", accessibilityDescription: "SnipClip")!
+        img.isTemplate = true
+        return img
+    }()
+
+    private static let recordingIcon: NSImage = {
+        let config = NSImage.SymbolConfiguration(paletteColors: [NSColor(srgbRed: 1.0, green: 0.23, blue: 0.19, alpha: 1.0)])
+        let img = NSImage(systemSymbolName: "camera.viewfinder", accessibilityDescription: "SnipClip — Recording")!
+            .withSymbolConfiguration(config)!
+        img.isTemplate = false
+        return img
+    }()
 
     /// Red icon + a live "mm:ss" elapsed time, both in the menu bar itself
     /// and in the menu item — a basic but visible recording indicator.
     private func beginRecordingIndicator() {
-        // A plain sRGB value rather than the dynamic .systemRed catalog color —
-        // the latter can resolve oddly (near-black) against the menu bar's
-        // vibrancy when used as a status item's contentTintColor.
-        statusButton?.contentTintColor = NSColor(srgbRed: 1.0, green: 0.23, blue: 0.19, alpha: 1.0)
+        statusButton?.image = AppDelegate.recordingIcon
         recordingStart = Date()
         updateRecordingTitle()
 
@@ -286,7 +308,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         recordingTimer?.invalidate()
         recordingTimer = nil
         recordingStart = nil
-        statusButton?.contentTintColor = nil
+        statusButton?.image = AppDelegate.idleIcon
         statusButton?.title = ""
         recordingItem.title = recordingIdleTitle()
     }
