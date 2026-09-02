@@ -31,10 +31,11 @@ final class PreferencesController: NSObject, NSWindowDelegate {
 
 final class PreferencesWindow: NSWindow {
     private var recorder: ShortcutRecorderView!
+    private var folderLabel: NSTextField!
 
     init() {
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 340, height: 200),
+            contentRect: NSRect(x: 0, y: 0, width: 340, height: 300),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -46,22 +47,22 @@ final class PreferencesWindow: NSWindow {
     }
 
     private func buildUI() {
-        let root = NSView(frame: NSRect(x: 0, y: 0, width: 340, height: 200))
+        let root = NSView(frame: NSRect(x: 0, y: 0, width: 340, height: 300))
         contentView = root
 
         let label = NSTextField(labelWithString: "Capture shortcut")
         label.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
-        label.frame = NSRect(x: 24, y: 148, width: 200, height: 20)
+        label.frame = NSRect(x: 24, y: 248, width: 200, height: 20)
         root.addSubview(label)
 
         let hint = NSTextField(wrappingLabelWithString:
             "Click the box, then press a new key combination. Choose something unlikely to clash with other apps' shortcuts.")
         hint.font = NSFont.systemFont(ofSize: 11)
         hint.textColor = .secondaryLabelColor
-        hint.frame = NSRect(x: 24, y: 96, width: 292, height: 40)
+        hint.frame = NSRect(x: 24, y: 196, width: 292, height: 40)
         root.addSubview(hint)
 
-        let rec = ShortcutRecorderView(frame: NSRect(x: 24, y: 60, width: 160, height: 28))
+        let rec = ShortcutRecorderView(frame: NSRect(x: 24, y: 160, width: 160, height: 28))
         rec.onChange = { [weak self] keyCode, modifiers in
             HotkeyManager.shared.update(keyCode: keyCode, modifiers: modifiers)
             self?.recorder.refresh()
@@ -72,8 +73,30 @@ final class PreferencesWindow: NSWindow {
 
         let resetBtn = NSButton(title: "Reset to ⌘⇧S", target: self, action: #selector(resetTapped))
         resetBtn.bezelStyle = .rounded
-        resetBtn.frame = NSRect(x: 196, y: 58, width: 120, height: 28)
+        resetBtn.frame = NSRect(x: 196, y: 158, width: 120, height: 28)
         root.addSubview(resetBtn)
+
+        let sep = NSBox(frame: NSRect(x: 24, y: 144, width: 292, height: 1))
+        sep.boxType = .separator
+        root.addSubview(sep)
+
+        let folderTitle = NSTextField(labelWithString: "Recordings folder")
+        folderTitle.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
+        folderTitle.frame = NSRect(x: 24, y: 112, width: 200, height: 20)
+        root.addSubview(folderTitle)
+
+        let path = NSTextField(labelWithString: RecordingFolderManager.shared.displayPath)
+        path.font = NSFont.systemFont(ofSize: 11)
+        path.textColor = .secondaryLabelColor
+        path.lineBreakMode = .byTruncatingMiddle
+        path.frame = NSRect(x: 24, y: 90, width: 292, height: 16)
+        root.addSubview(path)
+        folderLabel = path
+
+        let chooseBtn = NSButton(title: "Choose…", target: self, action: #selector(chooseFolderTapped))
+        chooseBtn.bezelStyle = .rounded
+        chooseBtn.frame = NSRect(x: 24, y: 56, width: 100, height: 28)
+        root.addSubview(chooseBtn)
 
         let footer = NSTextField(labelWithString: "SnipClip v1.3.1")
         footer.font = NSFont.systemFont(ofSize: 10)
@@ -86,6 +109,13 @@ final class PreferencesWindow: NSWindow {
         HotkeyManager.shared.resetToDefault()
         recorder.refresh()
         NotificationCenter.default.post(name: .snipShortcutChanged, object: nil)
+    }
+
+    @objc private func chooseFolderTapped() {
+        RecordingFolderManager.shared.choose { [weak self] url in
+            guard url != nil else { return }
+            self?.folderLabel.stringValue = RecordingFolderManager.shared.displayPath
+        }
     }
 
     override var canBecomeKey: Bool { true }

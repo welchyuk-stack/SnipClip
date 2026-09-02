@@ -4,6 +4,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private var captureItem: NSMenuItem!
     private var recentCapturesItem: NSMenuItem!
+    private var recordingItem: NSMenuItem!
+    private var recordingScopedFolder: URL?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupStatusItem()
@@ -53,6 +55,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         timed.submenu = timedSubmenu
         menu.addItem(timed)
+
+        let recording = NSMenuItem(title: "Start Screen Recording", action: #selector(toggleRecording), keyEquivalent: "")
+        recording.target = self
+        menu.addItem(recording)
+        recordingItem = recording
 
         menu.addItem(.separator())
         let prefsItem = NSMenuItem(title: "Preferences…", action: #selector(showPreferences), keyEquivalent: ",")
@@ -149,7 +156,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
         guard CGPreflightScreenCaptureAccess() else {
-            requestScreenRecordingAccess()
+            requestScreenRecordingAccess {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    SelectionOverlayController.shared.show()
+                }
+            }
             return
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
@@ -162,23 +173,94 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             PaywallController.shared.show()
             return
         }
+        let delay = sender.tag
         guard CGPreflightScreenCaptureAccess() else {
-            requestScreenRecordingAccess()
+            requestScreenRecordingAccess { TimedCaptureController.shared.start(delay: delay) }
             return
         }
-        TimedCaptureController.shared.start(delay: sender.tag)
+        TimedCaptureController.shared.start(delay: delay)
+    }
+
+    // MARK: - Screen Recording
+
+    @objc private func toggleRecording() {
+        if ScreenRecorder.shared.isRecording {
+            stopRecording()
+        } else {
+            startRecording()
+        }
+    }
+
+    private func startRecording() {
+        guard PurchaseManager.shared.canUse else {
+            PaywallController.shared.show()
+            return
+        }
+        guard CGPreflightScreenCaptureAccess() else {
+            requestScreenRecordingAccess { [weak self] in self?.beginRecording() }
+            return
+        }
+        beginRecording()
+    }
+
+    private func beginRecording() {
+        if let folder = RecordingFolderManager.shared.folderURL {
+            record(in: folder)
+        } else {
+            RecordingFolderManager.shared.choose { [weak self] url in
+                guard let url else { return }
+                self?.record(in: url)
+            }
+        }
+    }
+
+    private func record(in folder: URL) {
+        let scoped = folder.startAccessingSecurityScopedResource()
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss"
+        let destination = folder.appendingPathComponent("SnipClip Recording \(formatter.string(from: Date())).mov")
+
+        ScreenRecorder.shared.start(to: destination) { [weak self] error in
+            guard let self else { return }
+            if let error {
+                if scoped { folder.stopAccessingSecurityScopedResource() }
+                NSAlert(error: error).runModal()
+                return
+            }
+            self.recordingScopedFolder = scoped ? folder : nil
+            self.recordingItem.title = "Stop Screen Recording"
+        }
+    }
+
+    private func stopRecording() {
+        ScreenRecorder.shared.stop { [weak self] url, error in
+            guard let self else { return }
+            if let folder = self.recordingScopedFolder {
+                folder.stopAccessingSecurityScopedResource()
+                self.recordingScopedFolder = nil
+            }
+            self.recordingItem.title = "Start Screen Recording"
+
+            if let error {
+                NSAlert(error: error).runModal()
+            } else if let url {
+                NSWorkspace.shared.activateFileViewerSelecting([url])
+            }
+        }
     }
 
     /// Always surfaces visible feedback — never fails silently, even if the
     /// system permission prompt or Settings deep link doesn't fire (seen on
     /// some macOS versions where the prompt is suppressed for the first call).
-    private func requestScreenRecordingAccess() {
+    /// - Parameter onGranted: run immediately if access turns out to already
+    ///   be granted (a stale preflight check). Not called if the user has to
+    ///   go grant it in Settings — that always requires a relaunch anyway.
+    private func requestScreenRecordingAccess(onGranted: @escaping () -> Void = {}) {
         NSApp.activate(ignoringOtherApps: true)
         let alreadyGranted = CGRequestScreenCaptureAccess()
         if alreadyGranted {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                SelectionOverlayController.shared.show()
-            }
+            onGranted()
             return
         }
 
