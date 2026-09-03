@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		0E96D36364C4C28D957FC8FF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 49BAAB45835E584336E4562D /* Assets.xcassets */; };
+		1824A91BB2825EF5709CB3C8 /* ScrollingCaptureController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B9E84907962308A01B58D74 /* ScrollingCaptureController.swift */; };
 		1D123176DC658389382150C1 /* ScreenRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74CE2FC62134CC2DA8530788 /* ScreenRecorder.swift */; };
 		23E7D35A89C1154585471D8C /* CaptureHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E1E7EF77550A79D8DBCD85C /* CaptureHistory.swift */; };
 		3149C86C91C60DF8C9590B53 /* PreferencesWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAF16A36FFF3883039314BEE /* PreferencesWindow.swift */; };
@@ -28,6 +29,7 @@
 		023B90301687BA1F49251580 /* MarkupEditorWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkupEditorWindow.swift; sourceTree = "<group>"; };
 		0CFC27A9341F44B4D2E668CD /* ScreenCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenCapture.swift; sourceTree = "<group>"; };
 		181B85B1CDE3820EB33B3D23 /* SnipClip.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SnipClip.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		1B9E84907962308A01B58D74 /* ScrollingCaptureController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollingCaptureController.swift; sourceTree = "<group>"; };
 		49BAAB45835E584336E4562D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		4DA9838A69DF001774AC6C22 /* MarkupCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkupCanvasView.swift; sourceTree = "<group>"; };
 		5CAA5A9BE3D05F88345787A7 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -79,6 +81,7 @@
 				DABB191924A9694B0C403195 /* RecordingFolderManager.swift */,
 				0CFC27A9341F44B4D2E668CD /* ScreenCapture.swift */,
 				74CE2FC62134CC2DA8530788 /* ScreenRecorder.swift */,
+				1B9E84907962308A01B58D74 /* ScrollingCaptureController.swift */,
 				9B1221435367768116822875 /* SelectionOverlay.swift */,
 				A8A8DBF26F1C05A275A19DA8 /* SidebarButton.swift */,
 				640A97A0C1B67B19AA38A1EB /* SnipClip-Debug.entitlements */,
@@ -169,6 +172,7 @@
 				BB3B65ED5DF99DDC183EB2DA /* RecordingFolderManager.swift in Sources */,
 				6E371B959CF026C9E364B148 /* ScreenCapture.swift in Sources */,
 				1D123176DC658389382150C1 /* ScreenRecorder.swift in Sources */,
+				1824A91BB2825EF5709CB3C8 /* ScrollingCaptureController.swift in Sources */,
 				CE7601F5FBB9DE37925F2072 /* SelectionOverlay.swift in Sources */,
 				58DE131309F913ACD357BAA0 /* SidebarButton.swift in Sources */,
 				7136A26951FB059BC89371FA /* TimedCaptureController.swift in Sources */,

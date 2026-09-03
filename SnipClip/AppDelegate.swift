@@ -59,6 +59,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         timed.submenu = timedSubmenu
         menu.addItem(timed)
 
+        let scrolling = NSMenuItem(title: "Scrolling Capture", action: #selector(startScrollingCapture), keyEquivalent: "")
+        scrolling.target = self
+        menu.addItem(scrolling)
+
         let recording = NSMenuItem(title: recordingIdleTitle(), action: #selector(toggleRecording), keyEquivalent: "")
         recording.target = self
         menu.addItem(recording)
@@ -183,6 +187,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
         TimedCaptureController.shared.start(delay: delay)
+    }
+
+    @objc private func startScrollingCapture() {
+        guard CGPreflightScreenCaptureAccess() else {
+            requestScreenRecordingAccess { ScrollingCaptureController.shared.start() }
+            return
+        }
+        ScrollingCaptureController.shared.start()
     }
 
     // MARK: - Screen Recording
