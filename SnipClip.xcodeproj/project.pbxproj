@@ -11,7 +11,6 @@
 		1D123176DC658389382150C1 /* ScreenRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74CE2FC62134CC2DA8530788 /* ScreenRecorder.swift */; };
 		23E7D35A89C1154585471D8C /* CaptureHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E1E7EF77550A79D8DBCD85C /* CaptureHistory.swift */; };
 		3149C86C91C60DF8C9590B53 /* PreferencesWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAF16A36FFF3883039314BEE /* PreferencesWindow.swift */; };
-		4D5071CB3629CB285054577F /* PaywallWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1DD02369333769476B2F445 /* PaywallWindow.swift */; };
 		58DE131309F913ACD357BAA0 /* SidebarButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8A8DBF26F1C05A275A19DA8 /* SidebarButton.swift */; };
 		6A082F813864BE5A426F0E2C /* MarkupEditorWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 023B90301687BA1F49251580 /* MarkupEditorWindow.swift */; };
 		6E371B959CF026C9E364B148 /* ScreenCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CFC27A9341F44B4D2E668CD /* ScreenCapture.swift */; };
@@ -22,7 +21,6 @@
 		BB3B65ED5DF99DDC183EB2DA /* RecordingFolderManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DABB191924A9694B0C403195 /* RecordingFolderManager.swift */; };
 		CE7601F5FBB9DE37925F2072 /* SelectionOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B1221435367768116822875 /* SelectionOverlay.swift */; };
 		D1E70C076D60AB9387596215 /* HotkeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DEB3EA7EFBE48A51367BCB7 /* HotkeyManager.swift */; };
-		E6686C04E518BAD00B49FAF0 /* PurchaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F7C20A65C5F24D48867F56C /* PurchaseManager.swift */; };
 		FD1096B5AADE6B0CE1356735 /* MarkupCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DA9838A69DF001774AC6C22 /* MarkupCanvasView.swift */; };
 /* End PBXBuildFile section */
 
@@ -39,11 +37,9 @@
 		7E1E7EF77550A79D8DBCD85C /* CaptureHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureHistory.swift; sourceTree = "<group>"; };
 		80552FADE48E5410A4A62DB3 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		89C2BF5FBB793981A46ABE3C /* TimedCaptureController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimedCaptureController.swift; sourceTree = "<group>"; };
-		8F7C20A65C5F24D48867F56C /* PurchaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PurchaseManager.swift; sourceTree = "<group>"; };
 		9B1221435367768116822875 /* SelectionOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionOverlay.swift; sourceTree = "<group>"; };
 		A8A8DBF26F1C05A275A19DA8 /* SidebarButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarButton.swift; sourceTree = "<group>"; };
 		A9C55F7164E71FE167BAF6EC /* SnipClip.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SnipClip.entitlements; sourceTree = "<group>"; };
-		B1DD02369333769476B2F445 /* PaywallWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallWindow.swift; sourceTree = "<group>"; };
 		BAF16A36FFF3883039314BEE /* PreferencesWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesWindow.swift; sourceTree = "<group>"; };
 		BFFABC80297369CFC82EDA29 /* MarkupModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkupModel.swift; sourceTree = "<group>"; };
 		D414C391D98EA28E10FA2666 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
@@ -79,9 +75,7 @@
 				4DA9838A69DF001774AC6C22 /* MarkupCanvasView.swift */,
 				023B90301687BA1F49251580 /* MarkupEditorWindow.swift */,
 				BFFABC80297369CFC82EDA29 /* MarkupModel.swift */,
-				B1DD02369333769476B2F445 /* PaywallWindow.swift */,
 				BAF16A36FFF3883039314BEE /* PreferencesWindow.swift */,
-				8F7C20A65C5F24D48867F56C /* PurchaseManager.swift */,
 				DABB191924A9694B0C403195 /* RecordingFolderManager.swift */,
 				0CFC27A9341F44B4D2E668CD /* ScreenCapture.swift */,
 				74CE2FC62134CC2DA8530788 /* ScreenRecorder.swift */,
@@ -122,7 +116,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 2660;
+				LastUpgradeCheck = 1500;
 				TargetAttributes = {
 					F5A17A876CE0C9CAAC684F66 = {
 						DevelopmentTeam = Q8BH8C2Y28;
@@ -171,9 +165,7 @@
 				FD1096B5AADE6B0CE1356735 /* MarkupCanvasView.swift in Sources */,
 				6A082F813864BE5A426F0E2C /* MarkupEditorWindow.swift in Sources */,
 				9020F6909D2212026CB53AD9 /* MarkupModel.swift in Sources */,
-				4D5071CB3629CB285054577F /* PaywallWindow.swift in Sources */,
 				3149C86C91C60DF8C9590B53 /* PreferencesWindow.swift in Sources */,
-				E6686C04E518BAD00B49FAF0 /* PurchaseManager.swift in Sources */,
 				BB3B65ED5DF99DDC183EB2DA /* RecordingFolderManager.swift in Sources */,
 				6E371B959CF026C9E364B148 /* ScreenCapture.swift in Sources */,
 				1D123176DC658389382150C1 /* ScreenRecorder.swift in Sources */,
@@ -221,12 +213,9 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = Q8BH8C2Y28;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -240,7 +229,6 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;
@@ -255,7 +243,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 14;
-				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = Q8BH8C2Y28;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = SnipClip/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -278,7 +266,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 14;
-				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = Q8BH8C2Y28;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = SnipClip/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -327,12 +315,9 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = Q8BH8C2Y28;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -353,7 +338,6 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;

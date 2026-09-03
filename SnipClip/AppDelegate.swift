@@ -19,7 +19,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NotificationCenter.default.addObserver(self,
             selector: #selector(shortcutChanged), name: .snipShortcutChanged, object: nil)
         HotkeyManager.shared.start()
-        PurchaseManager.shared.start()
         CGRequestScreenCaptureAccess()
     }
 
@@ -164,10 +163,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard now.timeIntervalSince(lastCaptureRequest) > 0.5 else { return }
         lastCaptureRequest = now
 
-        guard PurchaseManager.shared.canUse else {
-            PaywallController.shared.show()
-            return
-        }
         guard CGPreflightScreenCaptureAccess() else {
             requestScreenRecordingAccess {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
@@ -182,10 +177,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func startTimedCapture(_ sender: NSMenuItem) {
-        guard PurchaseManager.shared.canUse else {
-            PaywallController.shared.show()
-            return
-        }
         let delay = sender.tag
         guard CGPreflightScreenCaptureAccess() else {
             requestScreenRecordingAccess { TimedCaptureController.shared.start(delay: delay) }
@@ -205,10 +196,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func startRecording() {
-        guard PurchaseManager.shared.canUse else {
-            PaywallController.shared.show()
-            return
-        }
         guard CGPreflightScreenCaptureAccess() else {
             requestScreenRecordingAccess { [weak self] in self?.beginRecording() }
             return
