@@ -2,26 +2,37 @@ import AppKit
 
 /// Basic scrolling capture: pick a region the same way as a normal capture,
 /// then manually scroll the content underneath while SnipClip keeps grabbing
-/// frames of that region and stitching the newly revealed rows onto the
-/// bottom of a growing image. Detection is a lightweight 1D row-signature
-/// slide match, not pixel-perfect alignment — good enough for typical text
-/// and web content, not guaranteed for everything (video, animation, blur).
+/// frames of that region every 350ms and stitching newly revealed rows onto
+/// the bottom of a growing image.
+///
+/// Pixel work is done entirely through NSBitmapImageRep rather than raw
+/// CGImage/CGContext calls — NSBitmapImageRep's bitmapData is documented to
+/// always be top-down (row 0 = top of the image), which sidesteps the
+/// top-vs-bottom-origin ambiguity that CGImage.cropping(to:) and a raw
+/// CGContext's drawing coordinate space otherwise carry. Composite growth is
+/// just concatenating raw row bytes onto the end of a buffer, not a redraw.
 final class ScrollingCaptureController {
     static let shared = ScrollingCaptureController()
     private init() {}
 
     private var isActive = false
     private var pickerWindow: SelectionOverlayWindow?
-    private var rect: NSRect?
+    private var captureRect: NSRect?
     private var timer: Timer?
     private var hud: ScrollingCaptureHUD?
 
-    private var composite: CGImage?
+    // Composite state: a flat top-down RGBA8 buffer that only ever grows by
+    // appending newly-revealed rows to the end.
+    private var compositeBuffer: [UInt8] = []
+    private var compositeWidth = 0
+    private var compositeHeight = 0
+    private var bytesPerRow = 0
+
     private var lastSignature: [Double]?
 
     private let tickInterval: TimeInterval = 0.35
-    private let minShift = 8              // ignore sub-pixel jitter
-    private let matchThreshold = 10.0     // avg per-sample byte diff, 0–255 scale
+    private let minShift = 6              // ignore sub-pixel jitter
+    private let matchThreshold = 6.0      // avg per-sample byte diff, 0–255 scale
     private let maxCompositeHeight = 12000
 
     func start() {
@@ -60,13 +71,19 @@ final class ScrollingCaptureController {
         // Brief pause so the picker overlay is fully gone before we grab pixels.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
             guard let self else { return }
-            guard let first = self.captureCGImage(rect: rect) else {
+            guard let cgImage = self.captureCGImage(rect: rect),
+                  let rep = ScrollingCaptureController.normalizedBitmap(from: cgImage),
+                  let data = rep.bitmapData else {
                 self.isActive = false
                 return
             }
-            self.rect = rect
-            self.composite = first
-            self.lastSignature = ScrollingCaptureController.rowSignature(of: first)
+
+            self.captureRect = rect
+            self.compositeWidth = rep.pixelsWide
+            self.compositeHeight = rep.pixelsHigh
+            self.bytesPerRow = rep.bytesPerRow
+            self.compositeBuffer = Array(UnsafeBufferPointer(start: data, count: self.bytesPerRow * self.compositeHeight))
+            self.lastSignature = ScrollingCaptureController.rowSignature(rep: rep)
 
             let h = ScrollingCaptureHUD(anchorScreen: ScrollingCaptureController.screen(for: rect))
             h.onStop = { [weak self] in self?.finish() }
@@ -83,12 +100,15 @@ final class ScrollingCaptureController {
     }
 
     private func tick() {
-        guard let rect, let lastSignature,
-              let newFrame = captureCGImage(rect: rect) else { return }
-        guard let newSignature = ScrollingCaptureController.rowSignature(of: newFrame),
-              newSignature.count == lastSignature.count, newSignature.count > 40 else { return }
+        guard let rect = captureRect, let lastSignature,
+              let cgImage = captureCGImage(rect: rect),
+              let rep = ScrollingCaptureController.normalizedBitmap(from: cgImage),
+              let data = rep.bitmapData else { return }
 
-        let height = newSignature.count
+        let height = rep.pixelsHigh
+        guard let newSignature = ScrollingCaptureController.rowSignature(rep: rep),
+              newSignature.count == lastSignature.count, height > 40 else { return }
+
         let minOverlap = max(40, height / 3)
         var bestShift = 0
         var bestError = Double.greatestFiniteMagnitude
@@ -99,7 +119,9 @@ final class ScrollingCaptureController {
             var total = 0.0
             var i = 0
             while i < compareCount {
-                total += abs(newSignature[i] - lastSignature[s + i])
+                // newFrame row i shows the same content as lastFrame row
+                // (i + s) once the view has scrolled down by s rows.
+                total += abs(newSignature[i] - lastSignature[i + s])
                 i += 1
             }
             let avg = total / Double(compareCount)
@@ -111,24 +133,27 @@ final class ScrollingCaptureController {
         }
 
         guard bestError < matchThreshold, bestShift > 0 else {
-            // No confident scroll detected this tick — just refresh the
-            // reference frame so drift doesn't accumulate.
+            // No confident scroll detected this tick (or scrolled too far to
+            // find any overlap) — just refresh the reference frame so drift
+            // doesn't accumulate against a stale comparison point.
             self.lastSignature = newSignature
             return
         }
 
-        if let slice = newFrame.cropping(to: CGRect(x: 0, y: newFrame.height - bestShift,
-                                                     width: newFrame.width, height: bestShift)),
-           let composite,
-           let merged = ScrollingCaptureController.appendVertically(top: composite, bottom: slice),
-           merged.height <= maxCompositeHeight {
-            self.composite = merged
-            hud?.updateHeight(merged.height)
-        } else if let composite, composite.height > maxCompositeHeight {
-            // Hit the cap — stop automatically rather than growing forever.
-            finish()
+        // Rows are top-down: the newly revealed content is the BOTTOM
+        // `bestShift` rows of the new frame — i.e. the highest row indices.
+        let sliceStart = (height - bestShift) * rep.bytesPerRow
+        let sliceLength = bestShift * rep.bytesPerRow
+        guard sliceStart >= 0, sliceLength > 0,
+              compositeHeight + bestShift <= maxCompositeHeight else {
+            if compositeHeight >= maxCompositeHeight { finish() }
             return
         }
+
+        let slice = UnsafeBufferPointer(start: data + sliceStart, count: sliceLength)
+        compositeBuffer.append(contentsOf: slice)
+        compositeHeight += bestShift
+        hud?.updateHeight(compositeHeight)
 
         self.lastSignature = newSignature
     }
@@ -137,9 +162,13 @@ final class ScrollingCaptureController {
         timer?.invalidate(); timer = nil
         hud?.orderOut(nil); hud = nil
 
-        defer { isActive = false; rect = nil; composite = nil; lastSignature = nil }
-        guard let final = composite else { return }
-        let image = NSImage(cgImage: final, size: NSSize(width: final.width, height: final.height))
+        defer { resetState() }
+        guard compositeHeight > 0, compositeWidth > 0,
+              let image = ScrollingCaptureController.makeImage(
+                buffer: compositeBuffer, width: compositeWidth,
+                height: compositeHeight, bytesPerRow: bytesPerRow)
+        else { return }
+
         NSPasteboard.general.clearContents()
         NSPasteboard.general.writeObjects([image])
         CaptureHistory.shared.record(image)
@@ -149,8 +178,17 @@ final class ScrollingCaptureController {
     private func cancel() {
         timer?.invalidate(); timer = nil
         hud?.orderOut(nil); hud = nil
+        resetState()
+    }
+
+    private func resetState() {
         isActive = false
-        rect = nil; composite = nil; lastSignature = nil
+        captureRect = nil
+        compositeBuffer = []
+        compositeWidth = 0
+        compositeHeight = 0
+        bytesPerRow = 0
+        lastSignature = nil
     }
 
     private func captureCGImage(rect: NSRect) -> CGImage? {
@@ -164,46 +202,74 @@ final class ScrollingCaptureController {
             ?? NSScreen.main ?? NSScreen.screens[0]
     }
 
+    // MARK: - Pixel helpers
+
+    /// Redraws a CGImage into a known, fixed 8-bit RGBA NSBitmapImageRep, so
+    /// every frame we handle has an identical, predictable byte layout
+    /// regardless of the source image's own format.
+    private static func normalizedBitmap(from cgImage: CGImage) -> NSBitmapImageRep? {
+        guard let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: cgImage.width, pixelsHigh: cgImage.height,
+            bitsPerSample: 8, samplesPerPixel: 4,
+            hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0, bitsPerPixel: 0
+        ) else { return nil }
+
+        NSGraphicsContext.saveGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+        guard let ctx = NSGraphicsContext(bitmapImageRep: rep) else { return nil }
+        NSGraphicsContext.current = ctx
+        ctx.cgContext.draw(cgImage, in: CGRect(x: 0, y: 0, width: cgImage.width, height: cgImage.height))
+        return rep
+    }
+
     /// A coarse per-row brightness signature (subsampled columns, single
     /// channel) — cheap enough to run every tick, precise enough to find a
-    /// scroll offset by sliding one signature against another.
-    private static func rowSignature(of image: CGImage) -> [Double]? {
-        guard let data = image.dataProvider?.data, let ptr = CFDataGetBytePtr(data) else { return nil }
-        let width = image.width, height = image.height
+    /// scroll offset by sliding one signature against another. Row 0 is the
+    /// top of the image (NSBitmapImageRep's guaranteed row order).
+    private static func rowSignature(rep: NSBitmapImageRep) -> [Double]? {
+        guard let data = rep.bitmapData else { return nil }
+        let width = rep.pixelsWide, height = rep.pixelsHigh
         guard width > 0, height > 0 else { return nil }
-        let bytesPerRow = image.bytesPerRow
-        let bytesPerPixel = max(1, image.bitsPerPixel / 8)
+        let bytesPerRow = rep.bytesPerRow
+        let bytesPerPixel = 4
         let stride = max(1, width / 200)
-        let dataLength = CFDataGetLength(data)
 
         var sig = [Double](repeating: 0, count: height)
-        var sampleCount = 0
+        let sampleCount = max(1, (width + stride - 1) / stride)
         for y in 0..<height {
             var sum = 0
             var x = 0
             let rowBase = y * bytesPerRow
             while x < width {
-                let offset = rowBase + x * bytesPerPixel
-                if offset < dataLength { sum += Int(ptr[offset]) }
+                sum += Int(data[rowBase + x * bytesPerPixel])
                 x += stride
             }
-            if y == 0 { sampleCount = max(1, (width + stride - 1) / stride) }
             sig[y] = Double(sum) / Double(sampleCount)
         }
         return sig
     }
 
-    /// Stacks `top` above `bottom` into one taller image.
-    private static func appendVertically(top: CGImage, bottom: CGImage) -> CGImage? {
-        let width = max(top.width, bottom.width)
-        let totalHeight = top.height + bottom.height
-        guard let ctx = CGContext(data: nil, width: width, height: totalHeight,
-                                  bitsPerComponent: 8, bytesPerRow: 0,
-                                  space: CGColorSpaceCreateDeviceRGB(),
-                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
-        ctx.draw(bottom, in: CGRect(x: 0, y: 0, width: CGFloat(width), height: CGFloat(bottom.height)))
-        ctx.draw(top, in: CGRect(x: 0, y: CGFloat(bottom.height), width: CGFloat(width), height: CGFloat(top.height)))
-        return ctx.makeImage()
+    private static func makeImage(buffer: [UInt8], width: Int, height: Int, bytesPerRow: Int) -> NSImage? {
+        guard let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: width, pixelsHigh: height,
+            bitsPerSample: 8, samplesPerPixel: 4,
+            hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: bytesPerRow, bitsPerPixel: 32
+        ), let dest = rep.bitmapData else { return nil }
+
+        buffer.withUnsafeBufferPointer { src in
+            guard let base = src.baseAddress else { return }
+            dest.update(from: base, count: min(buffer.count, bytesPerRow * height))
+        }
+
+        let image = NSImage(size: NSSize(width: width, height: height))
+        image.addRepresentation(rep)
+        return image
     }
 }
 
