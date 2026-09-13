@@ -14,8 +14,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.snipclip.mac
-        MARKETING_VERSION: "1.4"
-        CURRENT_PROJECT_VERSION: "14"
+        MARKETING_VERSION: "1.5"
+        CURRENT_PROJECT_VERSION: "15"
         SWIFT_VERSION: "5.9"
         MACOSX_DEPLOYMENT_TARGET: "13.0"
         INFOPLIST_FILE: SnipClip/Info.plist
