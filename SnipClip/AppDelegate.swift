@@ -19,7 +19,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NotificationCenter.default.addObserver(self,
             selector: #selector(shortcutChanged), name: .snipShortcutChanged, object: nil)
         HotkeyManager.shared.start()
-        CGRequestScreenCaptureAccess()
+        // Deliberately not requesting Screen Recording access here. This used
+        // to call CGRequestScreenCaptureAccess() unconditionally on every
+        // launch, including silent auto-launches at login/boot — an active
+        // request call, not just a check, firing before the user has done
+        // anything. That's the most likely cause of permission re-prompts
+        // specifically tied to Launch at Login. Every real capture/recording
+        // action already does its own CGPreflightScreenCaptureAccess() check
+        // and only requests (with a friendlier explanatory alert) when the
+        // user actually tries to use a feature — see requestScreenRecordingAccess.
     }
 
     func applicationWillTerminate(_ notification: Notification) {
