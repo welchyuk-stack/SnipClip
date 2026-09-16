@@ -343,6 +343,15 @@ final class MarkupEditorWindow: NSWindow {
 
     override var canBecomeKey:  Bool { true }
     override var canBecomeMain: Bool { true }
+
+    override func becomeKey() {
+        super.becomeKey()
+        // Reopening from the Recent Captures menu leaves AppKit's default
+        // first-responder assignment ambiguous (unlike a fresh capture's
+        // overlay-dismissal path), which can leave clicks on the canvas
+        // not registering as drawing input. Force it explicitly every time.
+        makeFirstResponder(canvasView)
+    }
 }
 
 // MARK: - MarkupCanvasDelegate

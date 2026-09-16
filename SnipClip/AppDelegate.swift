@@ -139,8 +139,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                   action: #selector(reopenRecentCapture(_:)), keyEquivalent: "")
             item.target = self
             item.tag = index
-            guard let thumb = entry.image.copy() as? NSImage else { continue }
-            thumb.size = NSSize(width: 32, height: 32 * (thumb.size.height / max(thumb.size.width, 1)))
+            // Draw a genuinely independent thumbnail rather than copying + resizing
+            // entry.image directly — NSImage.copy() shares its underlying
+            // NSImageRep by reference, so mutating the copy's .size risked
+            // corrupting the size/orientation state of the very same image
+            // instance still referenced by CaptureHistory and later reopened
+            // for markup.
+            let srcSize = entry.image.size
+            guard srcSize.width > 0, srcSize.height > 0 else { continue }
+            let thumbSize = NSSize(width: 32, height: 32 * (srcSize.height / srcSize.width))
+            let thumb = NSImage(size: thumbSize)
+            thumb.lockFocus()
+            entry.image.draw(in: NSRect(origin: .zero, size: thumbSize),
+                              from: .zero, operation: .copy, fraction: 1.0)
+            thumb.unlockFocus()
             item.image = thumb
             submenu.addItem(item)
         }
