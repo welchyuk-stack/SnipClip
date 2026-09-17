@@ -343,11 +343,6 @@ final class MarkupEditorWindow: NSWindow {
 
     override var canBecomeKey:  Bool { true }
     override var canBecomeMain: Bool { true }
-
-    override func makeKeyAndOrderFront(_ sender: Any?) {
-        super.makeKeyAndOrderFront(sender)
-        makeFirstResponder(canvasView)
-    }
 }
 
 // MARK: - MarkupCanvasDelegate
