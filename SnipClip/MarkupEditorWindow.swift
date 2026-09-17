@@ -114,7 +114,13 @@ final class MarkupEditorWindow: NSWindow {
     }
 
     private func buildSidebar(height: CGFloat) -> NSView {
-        let bar = NSVisualEffectView()
+        // Give the bar its final size immediately — subviews below are added
+        // with absolute frames computed against `height`, and resizing the
+        // bar afterward (from a zero-size default frame) would make AppKit's
+        // autoresizing engine rescale every subview against that zero-size
+        // baseline, corrupting their frames. Same class of bug the `root`
+        // view in buildContent() already guards against.
+        let bar = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: sidebarW, height: height))
         bar.material = .sidebar
         bar.blendingMode = .withinWindow
         bar.state = .active
