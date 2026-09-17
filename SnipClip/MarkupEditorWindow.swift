@@ -335,7 +335,20 @@ final class MarkupEditorWindow: NSWindow {
         // Flip: origin top-left, y increases downward — matches the canvas view.
         cg.translateBy(x: 0, y: CGFloat(pixH))
         cg.scaleBy(x: 1, y: -1)
-        sourceImage.draw(in: NSRect(origin: .zero, size: NSSize(width: CGFloat(pixW), height: CGFloat(pixH))))
+
+        // Draw the raw CGImage rather than calling sourceImage.draw(in:) —
+        // NSImage's high-level draw auto-compensates for a flipped context on
+        // its own, which double-flips the manual transform above depending
+        // on which internal representation the image happens to be backed
+        // by at the time (e.g. a fresh capture vs. one re-shown from
+        // CaptureHistory can differ here), producing an upside-down render
+        // only in some cases. CGContext.draw has no such auto-compensation,
+        // so it stays correct regardless of representation type.
+        if let cgImage = sourceImage.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+            cg.draw(cgImage, in: CGRect(x: 0, y: 0, width: CGFloat(pixW), height: CGFloat(pixH)))
+        } else {
+            sourceImage.draw(in: NSRect(origin: .zero, size: NSSize(width: CGFloat(pixW), height: CGFloat(pixH))))
+        }
 
         let scaleX = CGFloat(pixW) / canvasSize.width
         let scaleY = CGFloat(pixH) / canvasSize.height
