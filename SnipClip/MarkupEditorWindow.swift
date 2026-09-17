@@ -315,45 +315,25 @@ final class MarkupEditorWindow: NSWindow {
         } else {
             pixW = Int(imgSize.width); pixH = Int(imgSize.height)
         }
+        guard pixW > 0, pixH > 0 else { return sourceImage }
 
-        guard let bitmapRep = NSBitmapImageRep(
-            bitmapDataPlanes: nil,
-            pixelsWide: pixW, pixelsHigh: pixH,
-            bitsPerSample: 8, samplesPerPixel: 4,
-            hasAlpha: true, isPlanar: false,
-            colorSpaceName: .calibratedRGB,
-            bytesPerRow: 0, bitsPerPixel: 0
-        ) else { return sourceImage }
-        bitmapRep.size = imgSize
+        // Render through an actual flipped NSView using the exact same
+        // draw calls as the on-screen canvas (img.draw(in:) + item.draw()),
+        // instead of hand-rolling a CGContext flip transform. The manual
+        // transform math was a persistent source of upside-down output that
+        // survived multiple attempts to fix in isolation; the on-screen
+        // canvas has never shown that bug, so reusing its exact drawing
+        // path sidesteps the problem rather than re-deriving the transform.
+        let renderView = RenderCanvasView(frame: NSRect(x: 0, y: 0, width: CGFloat(pixW), height: CGFloat(pixH)))
+        renderView.backgroundImage = sourceImage
+        renderView.items = canvasView.items
+        renderView.itemScale = CGSize(width: CGFloat(pixW) / canvasSize.width,
+                                      height: CGFloat(pixH) / canvasSize.height)
 
-        NSGraphicsContext.saveGraphicsState()
-        defer { NSGraphicsContext.restoreGraphicsState() }
-        guard let gc = NSGraphicsContext(bitmapImageRep: bitmapRep) else { return sourceImage }
-        NSGraphicsContext.current = gc
-
-        let cg = gc.cgContext
-        // Flip: origin top-left, y increases downward — matches the canvas view.
-        cg.translateBy(x: 0, y: CGFloat(pixH))
-        cg.scaleBy(x: 1, y: -1)
-
-        // Draw the raw CGImage rather than calling sourceImage.draw(in:) —
-        // NSImage's high-level draw auto-compensates for a flipped context on
-        // its own, which double-flips the manual transform above depending
-        // on which internal representation the image happens to be backed
-        // by at the time (e.g. a fresh capture vs. one re-shown from
-        // CaptureHistory can differ here), producing an upside-down render
-        // only in some cases. CGContext.draw has no such auto-compensation,
-        // so it stays correct regardless of representation type.
-        if let cgImage = sourceImage.cgImage(forProposedRect: nil, context: nil, hints: nil) {
-            cg.draw(cgImage, in: CGRect(x: 0, y: 0, width: CGFloat(pixW), height: CGFloat(pixH)))
-        } else {
-            sourceImage.draw(in: NSRect(origin: .zero, size: NSSize(width: CGFloat(pixW), height: CGFloat(pixH))))
+        guard let bitmapRep = renderView.bitmapImageRepForCachingDisplay(in: renderView.bounds) else {
+            return sourceImage
         }
-
-        let scaleX = CGFloat(pixW) / canvasSize.width
-        let scaleY = CGFloat(pixH) / canvasSize.height
-        cg.scaleBy(x: scaleX, y: scaleY)
-        for item in canvasView.items { item.draw() }
+        renderView.cacheDisplay(in: renderView.bounds, to: bitmapRep)
 
         let result = NSImage(size: imgSize)
         result.addRepresentation(bitmapRep)
@@ -370,4 +350,29 @@ extension MarkupEditorWindow: MarkupCanvasDelegate {
     // Clipboard is written only on explicit copyToClipboard() or initial capture —
     // not on every stroke, to avoid silently clobbering the user's clipboard.
     func canvasDidChange() {}
+}
+
+// MARK: - RenderCanvasView
+
+/// Offscreen stand-in for MarkupCanvasView used only by renderFinal(). Mirrors
+/// its flipped coordinate space and draw order exactly, so the exported image
+/// matches what's on screen instead of relying on separately-derived transform
+/// math for the export path.
+private final class RenderCanvasView: NSView {
+    var backgroundImage: NSImage?
+    var items: [MarkupItem] = []
+    var itemScale: CGSize = CGSize(width: 1, height: 1)
+
+    override var isFlipped: Bool { true }
+
+    override func draw(_ dirtyRect: NSRect) {
+        if let img = backgroundImage {
+            img.draw(in: bounds)
+        }
+        guard let ctx = NSGraphicsContext.current?.cgContext else { return }
+        ctx.saveGState()
+        ctx.scaleBy(x: itemScale.width, y: itemScale.height)
+        for item in items { item.draw() }
+        ctx.restoreGState()
+    }
 }
