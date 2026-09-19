@@ -246,7 +246,7 @@
 				CODE_SIGN_ENTITLEMENTS = SnipClip/SnipClip.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 16;
 				DEVELOPMENT_TEAM = Q8BH8C2Y28;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = SnipClip/Info.plist;
@@ -255,7 +255,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 1.5;
+				MARKETING_VERSION = 1.5.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.snipclip.mac;
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.9;
@@ -269,7 +269,7 @@
 				CODE_SIGN_ENTITLEMENTS = "SnipClip/SnipClip-Debug.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 16;
 				DEVELOPMENT_TEAM = Q8BH8C2Y28;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = SnipClip/Info.plist;
@@ -278,7 +278,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 1.5;
+				MARKETING_VERSION = 1.5.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.snipclip.mac;
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.9;
