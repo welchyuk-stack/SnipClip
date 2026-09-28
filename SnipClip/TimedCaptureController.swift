@@ -1,76 +1,38 @@
 import AppKit
-import UniformTypeIdentifiers
 
-/// Full-screen capture on a countdown, shown via a small terminal-style HUD.
-/// The user picks the delay and a save destination from the menu bar;
-/// SnipClip counts down, then captures whichever screen the pointer is on
-/// and writes it straight to the chosen file.
+/// Full-screen capture on a countdown. Shows a small non-activating HUD on
+/// the screen under the pointer (so the user's own app stays frontmost while
+/// they set up the shot), then captures that screen and delivers it.
 final class TimedCaptureController {
     static let shared = TimedCaptureController()
 
-    private var hud: CountdownHUDWindow?
+    private var hud: CountdownHUDPanel?
     private var timer: Timer?
     private var isArmed = false
 
     private init() {}
 
-    /// Prompts for a save destination, then arms the countdown.
     /// - Parameter delay: whole seconds to count down from.
     func start(delay: Int) {
         guard !isArmed else { return }
-
-        let panel = NSSavePanel()
-        panel.title = "Save Timed Screenshot"
-        panel.prompt = "Save"
-        panel.allowedContentTypes = [.png, .jpeg]
-        panel.nameFieldStringValue = TimedCaptureController.defaultFileName()
-        panel.canCreateDirectories = true
-
-        let formatPicker = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 200, height: 28), pullsDown: false)
-        formatPicker.addItems(withTitles: ["PNG", "JPEG"])
-        formatPicker.target = self
-        formatPicker.action = #selector(formatChanged(_:))
-        panel.accessoryView = formatPicker
-
-        NSApp.activate(ignoringOtherApps: true)
-        panel.begin { [weak self] response in
-            guard let self, response == .OK, let url = panel.url else { return }
-            let isJPEG = formatPicker.indexOfSelectedItem == 1
-            self.arm(delay: delay, destination: url, jpeg: isJPEG)
-        }
-    }
-
-    @objc private func formatChanged(_ sender: NSPopUpButton) {
-        guard let panel = sender.window as? NSSavePanel else { return }
-        let base = (panel.nameFieldStringValue as NSString).deletingPathExtension
-        if sender.indexOfSelectedItem == 1 {
-            panel.nameFieldStringValue = base + ".jpg"
-            panel.allowedContentTypes = [.jpeg]
-        } else {
-            panel.nameFieldStringValue = base + ".png"
-            panel.allowedContentTypes = [.png]
-        }
-    }
-
-    private func arm(delay: Int, destination: URL, jpeg: Bool) {
         isArmed = true
 
-        let screen = TimedCaptureController.targetScreen()
-        let win = CountdownHUDWindow(screen: screen, destination: destination)
-        win.onCancel = { [weak self] in self?.cancel() }
-        win.updateCount(delay)
-        win.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-        hud = win
+        let screen = ScreenCapture.screenUnderMouse()
+        let panel = CountdownHUDPanel(screen: screen)
+        panel.onCancel = { [weak self] in self?.cancel() }
+        panel.updateCount(max(1, delay))
+        panel.orderFrontRegardless()
+        panel.makeKey()
+        hud = panel
 
-        var remaining = delay
+        var remaining = max(1, delay)
         let t = Timer(timeInterval: 1.0, repeats: true) { [weak self] tick in
             guard let self else { tick.invalidate(); return }
             remaining -= 1
             if remaining <= 0 {
                 tick.invalidate()
                 self.timer = nil
-                self.fire(on: screen, destination: destination, jpeg: jpeg)
+                self.fire(on: screen)
             } else {
                 self.hud?.updateCount(remaining)
             }
@@ -88,59 +50,38 @@ final class TimedCaptureController {
         isArmed = false
     }
 
-    private func fire(on screen: NSScreen, destination: URL, jpeg: Bool) {
+    private func fire(on screen: NSScreen) {
         hud?.orderOut(nil)
         hud = nil
 
-        // Brief pause so the HUD is fully gone before we grab pixels.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
-            defer { self?.isArmed = false }
-            guard let image = ScreenCapture.capture(nsScreenRect: screen.frame) else { return }
-
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.writeObjects([image])
-            CaptureHistory.shared.record(image)
-
-            guard let tiff = image.tiffRepresentation,
-                  let rep = NSBitmapImageRep(data: tiff) else { return }
-            let data = jpeg
-                ? rep.representation(using: .jpeg, properties: [.compressionFactor: 0.9])
-                : rep.representation(using: .png, properties: [:])
-            guard let data else { return }
-            do {
-                try data.write(to: destination)
-            } catch {
-                NSAlert(error: error).runModal()
+        Task { @MainActor in
+            defer { self.isArmed = false }
+            if #unavailable(macOS 14.0) {
+                // The fallback path can't exclude our windows; let the HUD vanish.
+                try? await Task.sleep(nanoseconds: 120_000_000)
             }
+            guard let capturer = await DisplayCapturer.make(for: screen, excludingOwnWindows: true),
+                  let cg = await capturer.capture() else {
+                AppAlert.show(title: "Timed Capture Failed",
+                              message: "SnipClip couldn't capture the screen. Check that Screen Recording permission is enabled in System Settings › Privacy & Security.")
+                return
+            }
+            CaptureDelivery.deliver(ScreenCapture.image(from: cg, pointSize: screen.frame.size))
         }
-    }
-
-    private static func defaultFileName() -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss"
-        return "SnipClip \(formatter.string(from: Date())).png"
-    }
-
-    /// The screen under the pointer right now, falling back to the main screen.
-    private static func targetScreen() -> NSScreen {
-        let loc = NSEvent.mouseLocation
-        return NSScreen.screens.first { NSMouseInRect(loc, $0.frame, false) }
-            ?? NSScreen.main
-            ?? NSScreen.screens[0]
     }
 }
 
 // MARK: - Countdown HUD
 
-private final class CountdownHUDWindow: NSWindow {
+private final class CountdownHUDPanel: NSPanel {
     var onCancel: (() -> Void)?
     private let numberLabel = NSTextField(labelWithString: "")
 
-    init(screen: NSScreen, destination: URL) {
+    init(screen: NSScreen) {
         let size = NSSize(width: 240, height: 200)
         super.init(
             contentRect: NSRect(origin: .zero, size: size),
-            styleMask: [.borderless],
+            styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
@@ -148,19 +89,15 @@ private final class CountdownHUDWindow: NSWindow {
         backgroundColor = .clear
         hasShadow = true
         level = .floating
+        hidesOnDeactivate = false
+        isReleasedWhenClosed = false
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
-        let origin = NSPoint(
-            x: screen.frame.midX - size.width / 2,
-            y: screen.frame.midY - size.height / 2
-        )
-        setFrameOrigin(origin)
+        setFrameOrigin(NSPoint(x: screen.frame.midX - size.width / 2,
+                               y: screen.frame.midY - size.height / 2))
+        buildUI(size: size)
 
-        buildUI(size: size, destination: destination)
-
-        // Gentle fade-in. Deliberately alpha-only — animating the window's
-        // own frame right as a layer-backed contentView is installed trips
-        // AppKit's layout-recursion guard and can be caught mid-transition.
+        // Alpha-only fade-in (animating the frame here trips layout recursion).
         alphaValue = 0
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.15
@@ -169,7 +106,7 @@ private final class CountdownHUDWindow: NSWindow {
         }
     }
 
-    private func buildUI(size: NSSize, destination: URL) {
+    private func buildUI(size: NSSize) {
         let blur = NSVisualEffectView(frame: NSRect(origin: .zero, size: size))
         blur.material = .popover
         blur.blendingMode = .behindWindow
@@ -179,58 +116,45 @@ private final class CountdownHUDWindow: NSWindow {
         blur.layer?.masksToBounds = true
         contentView = blur
 
-        // Fixed vertical rhythm, laid out top-down, so all the pieces stay
-        // evenly spaced regardless of card size.
-        let topPadding: CGFloat = 22
-        let titleHeight: CGFloat = 18
-        let gapTitleNumber: CGFloat = 10
-        let numberHeight: CGFloat = 64
-        let gapNumberDest: CGFloat = 14
-        let destHeight: CGFloat = 16
-        let gapDestHint: CGFloat = 8
-        let hintHeight: CGFloat = 14
-
-        var y = size.height - topPadding - titleHeight
-
         let title = NSTextField(labelWithString: "Full-Screen Capture")
         title.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
-        title.textColor = .labelColor
         title.alignment = .center
-        title.frame = NSRect(x: 0, y: y, width: size.width, height: titleHeight)
+        title.frame = NSRect(x: 0, y: size.height - 22 - 18, width: size.width, height: 18)
         blur.addSubview(title)
 
-        y -= gapTitleNumber + numberHeight
         numberLabel.font = NSFont.monospacedDigitSystemFont(ofSize: 52, weight: .bold)
-        numberLabel.textColor = .labelColor
         numberLabel.alignment = .center
-        numberLabel.frame = NSRect(x: 0, y: y, width: size.width, height: numberHeight)
+        numberLabel.frame = NSRect(x: 0, y: title.frame.minY - 8 - 64, width: size.width, height: 64)
         blur.addSubview(numberLabel)
 
-        y -= gapNumberDest + destHeight
-        let destLine = NSTextField(labelWithString: destination.lastPathComponent)
-        destLine.font = NSFont.systemFont(ofSize: 11, weight: .regular)
-        destLine.textColor = .secondaryLabelColor
-        destLine.alignment = .center
-        destLine.lineBreakMode = .byTruncatingMiddle
-        destLine.frame = NSRect(x: 16, y: y, width: size.width - 32, height: destHeight)
-        blur.addSubview(destLine)
+        let cancel = NSButton(title: "Cancel", target: self, action: #selector(cancelTapped))
+        cancel.bezelStyle = .rounded
+        cancel.font = NSFont.systemFont(ofSize: 13)
+        cancel.sizeToFit()
+        var f = cancel.frame
+        f.size.width += 20
+        f.origin = NSPoint(x: (size.width - f.width) / 2, y: 38)
+        cancel.frame = f
+        blur.addSubview(cancel)
 
-        y -= gapDestHint + hintHeight
-        let hint = NSTextField(labelWithString: "Press Esc to Cancel")
-        hint.font = NSFont.systemFont(ofSize: 10, weight: .regular)
-        hint.textColor = .tertiaryLabelColor
+        let hint = NSTextField(labelWithString: "Press Esc to cancel")
+        hint.font = NSFont.systemFont(ofSize: 11)
+        hint.textColor = .secondaryLabelColor
         hint.alignment = .center
-        hint.frame = NSRect(x: 0, y: y, width: size.width, height: hintHeight)
+        hint.frame = NSRect(x: 0, y: 14, width: size.width, height: 16)
         blur.addSubview(hint)
     }
 
     func updateCount(_ n: Int) {
-        numberLabel.stringValue = n > 0 ? "\(n)" : "📸"
+        numberLabel.stringValue = "\(n)"
     }
 
+    @objc private func cancelTapped() { onCancel?() }
+
+    override func cancelOperation(_ sender: Any?) { onCancel?() }
+
     override func keyDown(with event: NSEvent) {
-        if event.keyCode == 53 { onCancel?() } // Escape
-        else { super.keyDown(with: event) }
+        if event.keyCode == 53 { onCancel?() } else { super.keyDown(with: event) }
     }
 
     override var canBecomeKey: Bool { true }

@@ -1,55 +1,90 @@
 import AppKit
 import CoreGraphics
+import ScreenCaptureKit
 
-enum ScreenCapture {
-    /// Captures the given NSRect (NSScreen coordinates, bottom-left origin) and returns an NSImage
-    /// sized in logical points. Uses CGDisplayCreateImage + crop so the scale factor is derived
-    /// from the actual display rather than assumed, which avoids zoom issues on Retina displays.
-    static func capture(nsScreenRect rect: NSRect) -> NSImage? {
-        guard let screen = containingScreen(for: rect),
-              let displayID = screen.displayID,
-              let fullImage = CGDisplayCreateImage(displayID) else { return nil }
+/// Captures one display. On macOS 14+ uses ScreenCaptureKit (optionally
+/// excluding SnipClip's own windows); on macOS 13 falls back to
+/// CGDisplayCreateImage.
+final class DisplayCapturer {
+    let screen: NSScreen
+    private let displayID: CGDirectDisplayID
+    // Stored as AnyObject so the class compiles for a macOS 13 target.
+    private var scFilter: AnyObject?
+    private var scConfig: AnyObject?
 
-        // Scale factor: physical pixels per logical point on this display
-        let scaleX = CGFloat(fullImage.width)  / screen.frame.width
-        let scaleY = CGFloat(fullImage.height) / screen.frame.height
-
-        // Convert from global NSScreen coords → coords local to this screen
-        let local = NSRect(
-            x: rect.origin.x - screen.frame.origin.x,
-            y: rect.origin.y - screen.frame.origin.y,
-            width: rect.width,
-            height: rect.height
-        )
-
-        // Flip Y (NSScreen origin = bottom-left; CGImage origin = top-left)
-        let cropRect = CGRect(
-            x: local.origin.x * scaleX,
-            y: (screen.frame.height - local.maxY) * scaleY,
-            width: local.width  * scaleX,
-            height: local.height * scaleY
-        )
-
-        // Clamp to actual pixel bounds — prevents nil/bad crops near screen edges
-        let imageBounds = CGRect(x: 0, y: 0,
-                                 width: CGFloat(fullImage.width),
-                                 height: CGFloat(fullImage.height))
-        let safeCrop = cropRect.intersection(imageBounds)
-        guard !safeCrop.isNull, !safeCrop.isEmpty,
-              let cropped = fullImage.cropping(to: safeCrop) else { return nil }
-        return NSImage(cgImage: cropped, size: rect.size)
+    private init(screen: NSScreen, displayID: CGDirectDisplayID) {
+        self.screen = screen
+        self.displayID = displayID
     }
 
-    /// Returns the screen that contains the largest portion of rect.
-    private static func containingScreen(for rect: NSRect) -> NSScreen? {
-        NSScreen.screens.max {
-            NSIntersectionRect($0.frame, rect).area < NSIntersectionRect($1.frame, rect).area
+    static func make(for screen: NSScreen, excludingOwnWindows: Bool) async -> DisplayCapturer? {
+        guard let displayID = screen.displayID else { return nil }
+        let capturer = DisplayCapturer(screen: screen, displayID: displayID)
+        if #available(macOS 14.0, *) {
+            do {
+                let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+                guard let display = content.displays.first(where: { $0.displayID == displayID }) else { return nil }
+                let pid = getpid()
+                let excluded = excludingOwnWindows
+                    ? content.windows.filter { $0.owningApplication?.processID == pid }
+                    : []
+                let filter = SCContentFilter(display: display, excludingWindows: excluded)
+                let config = SCStreamConfiguration()
+                config.captureResolution = .best
+                config.showsCursor = false
+                let scale = CGFloat(filter.pointPixelScale)
+                config.width = Int((filter.contentRect.width * scale).rounded())
+                config.height = Int((filter.contentRect.height * scale).rounded())
+                capturer.scFilter = filter
+                capturer.scConfig = config
+            } catch {
+                return nil
+            }
         }
+        return capturer
+    }
+
+    func capture() async -> CGImage? {
+        if #available(macOS 14.0, *),
+           let filter = scFilter as? SCContentFilter,
+           let config = scConfig as? SCStreamConfiguration {
+            return try? await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config)
+        }
+        return CGDisplayCreateImage(displayID)
     }
 }
 
-private extension NSRect {
-    var area: CGFloat { width * height }
+enum ScreenCapture {
+    static func crop(_ image: CGImage, screen: NSScreen, rect: NSRect) -> CGImage? {
+        let sf = screen.frame
+        guard sf.width > 0 else { return nil }
+        let s = CGFloat(image.width) / sf.width
+        let cropRect = CGRect(x: (rect.minX - sf.minX) * s,
+                              y: (sf.maxY - rect.maxY) * s,
+                              width: rect.width * s,
+                              height: rect.height * s).integral
+        let bounds = CGRect(x: 0, y: 0, width: image.width, height: image.height)
+        let safe = cropRect.intersection(bounds)
+        guard !safe.isNull, !safe.isEmpty else { return nil }
+        return image.cropping(to: safe)
+    }
+
+    static func image(from cg: CGImage, pointSize: NSSize) -> NSImage {
+        NSImage(cgImage: cg, size: pointSize)
+    }
+
+    static func screenUnderMouse() -> NSScreen {
+        let loc = NSEvent.mouseLocation
+        return NSScreen.screens.first { NSMouseInRect(loc, $0.frame, false) }
+            ?? NSScreen.main ?? NSScreen.screens[0]
+    }
+
+    static func captureFullScreen() async -> NSImage? {
+        let screen = await MainActor.run { screenUnderMouse() }
+        guard let capturer = await DisplayCapturer.make(for: screen, excludingOwnWindows: true),
+              let cg = await capturer.capture() else { return nil }
+        return image(from: cg, pointSize: screen.frame.size)
+    }
 }
 
 private extension NSScreen {

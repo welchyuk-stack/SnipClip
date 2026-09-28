@@ -4,110 +4,160 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private var captureItem: NSMenuItem!
     private var recentCapturesItem: NSMenuItem!
-    private var recordingItem: NSMenuItem!
+    private var recordFullItem: NSMenuItem!
+    private var recordRegionItem: NSMenuItem!
+    private var stopRecordingItem: NSMenuItem!
     private var recordingScopedFolder: URL?
     private var statusButton: NSStatusBarButton?
     private var recordingStart: Date?
     private var recordingTimer: Timer?
 
+    private static let welcomeKey = "snipclip_welcome_shown_v1"
+    private static let reviewURL = URL(string: "macappstore://apps.apple.com/app/id6789209242?action=write-review")!
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupStatusItem()
-        NotificationCenter.default.addObserver(self,
-            selector: #selector(startCapture), name: .snipHotkeyFired, object: nil)
-        NotificationCenter.default.addObserver(self,
-            selector: #selector(toggleRecording), name: .snipRecordingHotkeyFired, object: nil)
-        NotificationCenter.default.addObserver(self,
-            selector: #selector(shortcutChanged), name: .snipShortcutChanged, object: nil)
-        HotkeyManager.shared.start()
-        // Deliberately not requesting Screen Recording access here. This used
-        // to call CGRequestScreenCaptureAccess() unconditionally on every
-        // launch, including silent auto-launches at login/boot — an active
-        // request call, not just a check, firing before the user has done
-        // anything. That's the most likely cause of permission re-prompts
-        // specifically tied to Launch at Login. Every real capture/recording
-        // action already does its own CGPreflightScreenCaptureAccess() check
-        // and only requests (with a friendlier explanatory alert) when the
-        // user actually tries to use a feature — see requestScreenRecordingAccess.
+        NotificationCenter.default.addObserver(self, selector: #selector(hotkeyCapture),
+                                               name: HotkeyManager.Slot.capture.notification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(hotkeyToggleRecording),
+                                               name: HotkeyManager.Slot.toggleRecording.notification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(shortcutChanged),
+                                               name: .snipShortcutChanged, object: nil)
+
+        ScreenRecorder.shared.onUnexpectedStop = { [weak self] url, error in
+            DispatchQueue.main.async { self?.handleUnexpectedStop(url: url, error: error) }
+        }
+
+        HotkeyManager.shared.start { [weak self] failed in
+            DispatchQueue.main.async { self?.reportHotkeyFailures(failed) }
+        }
+
+        // Screen Recording access is deliberately NOT requested at launch
+        // (silent login launches shouldn't prompt); each action asks via
+        // Permissions.ensureScreenRecording when the user actually uses it.
+        if !UserDefaults.standard.bool(forKey: AppDelegate.welcomeKey) {
+            UserDefaults.standard.set(true, forKey: AppDelegate.welcomeKey)
+            WelcomeWindowController.shared.show()
+        }
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard ScreenRecorder.shared.isActive else { return .terminateNow }
+        endRecordingIndicator()
+        ScreenRecorder.shared.stop { [weak self] _, _ in
+            if let folder = self?.recordingScopedFolder {
+                folder.stopAccessingSecurityScopedResource()
+                self?.recordingScopedFolder = nil
+            }
+            NSApp.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         HotkeyManager.shared.stop()
     }
 
+    private func reportHotkeyFailures(_ slots: [HotkeyManager.Slot]) {
+        for slot in slots {
+            let alert = NSAlert()
+            alert.messageText = "Shortcut Unavailable"
+            alert.informativeText = "\(HotkeyManager.shared.displayString(for: slot)) is being used by another app, so SnipClip can't use it. Choose a different shortcut in Settings."
+            alert.addButton(withTitle: "Open Settings")
+            alert.addButton(withTitle: "OK")
+            NSApp.activate(ignoringOtherApps: true)
+            if alert.runModal() == .alertFirstButtonReturn {
+                showSettings()
+                return
+            }
+        }
+    }
+
     // MARK: - Status bar
 
+    private func makeItem(_ title: String, _ action: Selector?, tag: Int = 0) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+        item.target = self
+        item.tag = tag
+        return item
+    }
+
     private func setupStatusItem() {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let btn = statusItem.button {
             btn.image = AppDelegate.idleIcon
+            btn.imagePosition = .imageLeading
             statusButton = btn
         }
 
         let menu = NSMenu()
-        let capture = NSMenuItem(title: captureTitle(), action: #selector(startCapture), keyEquivalent: "")
-        capture.target = self
-        menu.addItem(capture)
-        captureItem = capture
+        captureItem = makeItem("Capture Region", #selector(startCapture))
+        menu.addItem(captureItem)
+        menu.addItem(makeItem("Capture Full Screen", #selector(startFullScreenCapture)))
 
-        let recent = NSMenuItem(title: "Recent Captures", action: nil, keyEquivalent: "")
-        let recentSubmenu = NSMenu()
-        recent.submenu = recentSubmenu
-        menu.addItem(recent)
-        recentCapturesItem = recent
-
-        let timed = NSMenuItem(title: "Timed Full-Screen Capture", action: nil, keyEquivalent: "")
+        let timed = NSMenuItem(title: "Timed Capture", action: nil, keyEquivalent: "")
         let timedSubmenu = NSMenu()
         for seconds in [3, 5, 10] {
-            let item = NSMenuItem(title: "\(seconds) Second Delay…",
-                                  action: #selector(startTimedCapture(_:)), keyEquivalent: "")
-            item.target = self
-            item.tag = seconds
-            timedSubmenu.addItem(item)
+            timedSubmenu.addItem(makeItem("\(seconds) Seconds", #selector(startTimedCapture(_:)), tag: seconds))
         }
         timed.submenu = timedSubmenu
         menu.addItem(timed)
-
-        let scrolling = NSMenuItem(title: "Scrolling Capture", action: #selector(startScrollingCapture), keyEquivalent: "")
-        scrolling.target = self
-        menu.addItem(scrolling)
-
-        let recording = NSMenuItem(title: recordingIdleTitle(), action: #selector(toggleRecording), keyEquivalent: "")
-        recording.target = self
-        menu.addItem(recording)
-        recordingItem = recording
+        menu.addItem(makeItem("Scrolling Capture", #selector(startScrollingCapture)))
 
         menu.addItem(.separator())
-        let prefsItem = NSMenuItem(title: "Preferences…", action: #selector(showPreferences), keyEquivalent: ",")
-        prefsItem.target = self
-        menu.addItem(prefsItem)
-        let privacyItem = NSMenuItem(title: "Privacy Policy", action: #selector(openPrivacyPolicy), keyEquivalent: "")
-        privacyItem.target = self
-        menu.addItem(privacyItem)
-        let supportItem = NSMenuItem(title: "Support", action: #selector(openSupport), keyEquivalent: "")
-        supportItem.target = self
-        menu.addItem(supportItem)
+        recordFullItem = makeItem("Record Full Screen", #selector(recordFullScreen))
+        recordRegionItem = makeItem("Record Selected Region", #selector(recordSelectedRegion))
+        stopRecordingItem = makeItem("Stop Recording", #selector(stopRecordingAction))
+        stopRecordingItem.isHidden = true
+        menu.addItem(recordFullItem)
+        menu.addItem(recordRegionItem)
+        menu.addItem(stopRecordingItem)
+
         menu.addItem(.separator())
-        let quitItem = NSMenuItem(title: "Quit SnipClip", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        menu.addItem(quitItem)
+        let recent = NSMenuItem(title: "Recent Captures", action: nil, keyEquivalent: "")
+        recent.submenu = NSMenu()
+        menu.addItem(recent)
+        recentCapturesItem = recent
+
+        menu.addItem(.separator())
+        let settings = makeItem("Settings…", #selector(showSettings))
+        settings.keyEquivalent = ","
+        settings.keyEquivalentModifierMask = .command
+        menu.addItem(settings)
+        menu.addItem(makeItem("Welcome Guide", #selector(showWelcome)))
+        menu.addItem(makeItem("Rate SnipClip…", #selector(rateApp)))
+        menu.addItem(makeItem("Support", #selector(openSupport)))
+        menu.addItem(makeItem("Privacy Policy", #selector(openPrivacyPolicy)))
+        menu.addItem(makeItem("About SnipClip", #selector(showAbout)))
+        menu.addItem(.separator())
+        let quit = NSMenuItem(title: "Quit SnipClip", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        menu.addItem(quit)
         menu.delegate = self
         statusItem.menu = menu
+        applyShortcuts()
     }
 
-    private func captureTitle() -> String {
-        "Capture Area  \(HotkeyManager.shared.displayString(for: .capture))"
+    private func applyShortcut(_ slot: HotkeyManager.Slot, to item: NSMenuItem, title: String) {
+        if let eq = HotkeyManager.shared.menuKeyEquivalent(for: slot) {
+            item.title = title
+            item.keyEquivalent = eq.key
+            item.keyEquivalentModifierMask = eq.modifiers
+        } else {
+            item.keyEquivalent = ""
+            let display = HotkeyManager.shared.displayString(for: slot)
+            item.title = display.isEmpty ? title : "\(title)  \(display)"
+        }
     }
 
-    private func recordingIdleTitle() -> String {
-        "Start Screen Recording  \(HotkeyManager.shared.displayString(for: .toggleRecording))"
+    private func applyShortcuts() {
+        applyShortcut(.capture, to: captureItem, title: "Capture Region")
+        applyShortcut(.toggleRecording, to: recordFullItem, title: "Record Full Screen")
+        applyShortcut(.toggleRecording, to: stopRecordingItem, title: "Stop Recording")
+        updateRecordingTitle()
     }
 
     @objc private func shortcutChanged() {
-        captureItem.title = captureTitle()
-        // Only touch the recording item's title when idle — while recording
-        // it's showing the live elapsed-time counter instead.
-        if !ScreenRecorder.shared.isRecording {
-            recordingItem.title = recordingIdleTitle()
-        }
+        applyShortcuts()
     }
 
     // MARK: - Recent Captures
@@ -117,55 +167,97 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         rebuildRecentCaptures()
     }
 
+    private static let timeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm"
+        return f
+    }()
+
+    private func thumbnail(for image: NSImage) -> NSImage? {
+        let src = image.size
+        guard src.width > 0, src.height > 0 else { return nil }
+        let box: CGFloat = 32
+        let scale = min(box / src.width, box / src.height)
+        let size = NSSize(width: max(1, src.width * scale), height: max(1, src.height * scale))
+        return NSImage(size: size, flipped: false) { rect in
+            image.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1.0)
+            return true
+        }
+    }
+
     private func rebuildRecentCaptures() {
         let submenu = recentCapturesItem.submenu!
         submenu.removeAllItems()
 
         let entries = CaptureHistory.shared.entries
         guard !entries.isEmpty else {
-            recentCapturesItem.isEnabled = false
-            let empty = NSMenuItem(title: "No captures yet", action: nil, keyEquivalent: "")
+            let empty = NSMenuItem(title: "No Recent Captures", action: nil, keyEquivalent: "")
             empty.isEnabled = false
             submenu.addItem(empty)
             return
         }
-        recentCapturesItem.isEnabled = true
-
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
 
         for (index, entry) in entries.enumerated() {
-            let item = NSMenuItem(title: formatter.string(from: entry.date),
-                                  action: #selector(reopenRecentCapture(_:)), keyEquivalent: "")
-            item.target = self
-            item.tag = index
-            // Draw a genuinely independent thumbnail rather than copying + resizing
-            // entry.image directly — NSImage.copy() shares its underlying
-            // NSImageRep by reference, so mutating the copy's .size risked
-            // corrupting the size/orientation state of the very same image
-            // instance still referenced by CaptureHistory and later reopened
-            // for markup.
-            let srcSize = entry.image.size
-            guard srcSize.width > 0, srcSize.height > 0 else { continue }
-            let thumbSize = NSSize(width: 32, height: 32 * (srcSize.height / srcSize.width))
-            let thumb = NSImage(size: thumbSize)
-            thumb.lockFocus()
-            entry.image.draw(in: NSRect(origin: .zero, size: thumbSize),
-                              from: .zero, operation: .copy, fraction: 1.0)
-            thumb.unlockFocus()
-            item.image = thumb
+            let time = AppDelegate.timeFormatter.string(from: entry.date)
+            let title = "\(time) · \(Int(entry.pixelSize.width)) × \(Int(entry.pixelSize.height))"
+            let item = makeItem(title, #selector(reopenRecentCapture(_:)), tag: index)
+            if let img = entry.image { item.image = thumbnail(for: img) }
             submenu.addItem(item)
+
+            let copy = makeItem("Copy \(time)", #selector(copyRecentCapture(_:)), tag: index)
+            copy.isAlternate = true
+            copy.keyEquivalentModifierMask = .option
+            copy.image = item.image
+            submenu.addItem(copy)
         }
+        submenu.addItem(.separator())
+        submenu.addItem(makeItem("Clear Recent Captures", #selector(clearRecentCaptures)))
+    }
+
+    private func entry(at tag: Int) -> CaptureHistory.Entry? {
+        let entries = CaptureHistory.shared.entries
+        return entries.indices.contains(tag) ? entries[tag] : nil
     }
 
     @objc private func reopenRecentCapture(_ sender: NSMenuItem) {
-        let entries = CaptureHistory.shared.entries
-        guard entries.indices.contains(sender.tag) else { return }
-        MarkupEditorController.shared.show(image: entries[sender.tag].image)
+        guard let entry = entry(at: sender.tag) else { return }
+        guard let image = entry.image else {
+            AppAlert.show(title: "Capture Unavailable", message: "This capture could no longer be loaded.")
+            return
+        }
+        MarkupEditorController.shared.show(image: image, entry: entry)
     }
 
-    @objc private func showPreferences() {
+    @objc private func copyRecentCapture(_ sender: NSMenuItem) {
+        guard let image = entry(at: sender.tag)?.image else {
+            AppAlert.show(title: "Capture Unavailable", message: "This capture could no longer be loaded.")
+            return
+        }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.writeObjects([image])
+    }
+
+    @objc private func clearRecentCaptures() {
+        CaptureHistory.shared.clear()
+    }
+
+    // MARK: - App items
+
+    @objc func showSettings() {
         PreferencesController.shared.show()
+    }
+
+    @objc private func showWelcome() {
+        WelcomeWindowController.shared.show()
+    }
+
+    @objc private func rateApp() {
+        NSWorkspace.shared.open(AppDelegate.reviewURL)
+    }
+
+    @objc private func showAbout() {
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.orderFrontStandardAboutPanel(nil)
     }
 
     @objc private func openPrivacyPolicy() {
@@ -179,128 +271,169 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // MARK: - Capture
 
     private var lastCaptureRequest: Date = .distantPast
+    private var lastRecordingToggle: Date = .distantPast
 
-    @objc func startCapture() {
-        // Carbon can deliver a hotkey-pressed event twice for a single keypress;
-        // ignore repeat triggers that arrive within this window.
+    /// Carbon can deliver a hotkey event twice for one keypress.
+    @objc private func hotkeyCapture() {
         let now = Date()
         guard now.timeIntervalSince(lastCaptureRequest) > 0.5 else { return }
         lastCaptureRequest = now
+        startCapture()
+    }
 
-        guard CGPreflightScreenCaptureAccess() else {
-            requestScreenRecordingAccess {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                    SelectionOverlayController.shared.show()
+    @objc private func hotkeyToggleRecording() {
+        let now = Date()
+        guard now.timeIntervalSince(lastRecordingToggle) > 0.5 else { return }
+        lastRecordingToggle = now
+        if ScreenRecorder.shared.isActive { stopRecording() } else { recordFullScreen() }
+    }
+
+    @objc func startCapture() {
+        Permissions.ensureScreenRecording {
+            // Let the status menu finish closing before the overlay appears.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                SelectionOverlayController.shared.begin(purpose: .capture) { selection in
+                    guard let image = selection?.image else { return }
+                    CaptureDelivery.deliver(image)
                 }
             }
-            return
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            SelectionOverlayController.shared.show()
+    }
+
+    @objc private func startFullScreenCapture() {
+        Permissions.ensureScreenRecording {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                Task { @MainActor in
+                    if let image = await ScreenCapture.captureFullScreen() {
+                        CaptureDelivery.deliver(image)
+                    } else {
+                        AppAlert.show(title: "Capture Failed", message: "SnipClip couldn't capture the screen. Please try again.")
+                    }
+                }
+            }
         }
     }
 
     @objc private func startTimedCapture(_ sender: NSMenuItem) {
         let delay = sender.tag
-        guard CGPreflightScreenCaptureAccess() else {
-            requestScreenRecordingAccess { TimedCaptureController.shared.start(delay: delay) }
-            return
-        }
-        TimedCaptureController.shared.start(delay: delay)
+        Permissions.ensureScreenRecording { TimedCaptureController.shared.start(delay: delay) }
     }
 
     @objc private func startScrollingCapture() {
-        guard CGPreflightScreenCaptureAccess() else {
-            requestScreenRecordingAccess { ScrollingCaptureController.shared.start() }
-            return
-        }
-        ScrollingCaptureController.shared.start()
+        Permissions.ensureScreenRecording { ScrollingCaptureController.shared.start() }
     }
 
     // MARK: - Screen Recording
 
-    @objc private func toggleRecording() {
-        if ScreenRecorder.shared.isRecording {
-            stopRecording()
-        } else {
-            startRecording()
+    @objc private func recordFullScreen() {
+        guard !ScreenRecorder.shared.isActive else { stopRecording(); return }
+        Permissions.ensureScreenRecording { [weak self] in
+            self?.withRecordingFolder { folder in
+                self?.record(in: folder, screen: ScreenCapture.screenUnderMouse(), region: nil)
+            }
         }
     }
 
-    private func startRecording() {
-        guard CGPreflightScreenCaptureAccess() else {
-            requestScreenRecordingAccess { [weak self] in self?.beginRecording() }
+    @objc private func recordSelectedRegion() {
+        guard !ScreenRecorder.shared.isActive else { stopRecording(); return }
+        Permissions.ensureScreenRecording { [weak self] in
+            self?.withRecordingFolder { folder in
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    SelectionOverlayController.shared.begin(purpose: .recording) { selection in
+                        guard let selection else { return }
+                        self?.record(in: folder, screen: selection.screen, region: selection.rect)
+                    }
+                }
+            }
+        }
+    }
+
+    @objc private func stopRecordingAction() {
+        stopRecording()
+    }
+
+    private func withRecordingFolder(_ then: @escaping (URL) -> Void) {
+        if let folder = RecordingFolderManager.shared.folderURL {
+            then(folder)
             return
         }
-        beginRecording()
-    }
-
-    private func beginRecording() {
-        if let folder = RecordingFolderManager.shared.folderURL {
-            record(in: folder)
-        } else {
-            RecordingFolderManager.shared.choose { [weak self] url in
-                guard let url else { return }
-                self?.record(in: url)
-            }
+        let alert = NSAlert()
+        alert.messageText = "Choose a Recordings Folder"
+        alert.informativeText = "Choose a folder for your recordings. SnipClip will save every screen recording there, and you can change it any time in Settings."
+        alert.addButton(withTitle: "Continue")
+        alert.addButton(withTitle: "Cancel")
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        RecordingFolderManager.shared.choose { url in
+            guard let url else { return }
+            then(url)
         }
     }
 
-    private func record(in folder: URL) {
+    private func record(in folder: URL, screen: NSScreen, region: NSRect?) {
+        guard !ScreenRecorder.shared.isActive else { return }
         let scoped = folder.startAccessingSecurityScopedResource()
+        let destination = folder.appendingPathComponent(
+            AppSettings.timestampedFileName(prefix: "SnipClip Recording", ext: "mp4"))
 
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss"
-        let destination = folder.appendingPathComponent("SnipClip Recording \(formatter.string(from: Date())).mp4")
-
-        ScreenRecorder.shared.start(to: destination) { [weak self] error in
-            guard let self else { return }
-            if let error {
-                if scoped { folder.stopAccessingSecurityScopedResource() }
-                NSAlert(error: error).runModal()
-                return
+        ScreenRecorder.shared.start(to: destination, screen: screen, region: region,
+                                    captureAudio: AppSettings.recordSystemAudio) { [weak self] error in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if let error {
+                    if scoped { folder.stopAccessingSecurityScopedResource() }
+                    self.recordingScopedFolder = nil
+                    self.endRecordingIndicator()
+                    AppAlert.show(error: error, title: "Couldn't Start Recording")
+                    return
+                }
+                self.recordingScopedFolder = scoped ? folder : nil
+                self.beginRecordingIndicator()
             }
-            self.recordingScopedFolder = scoped ? folder : nil
-            self.beginRecordingIndicator()
         }
     }
 
     private func stopRecording() {
         endRecordingIndicator()
         ScreenRecorder.shared.stop { [weak self] url, error in
-            guard let self else { return }
-
-            // Reveal the file *before* releasing the folder's security scope —
-            // Finder needs that sandbox extension still held to open the path
-            // at all, otherwise it fails with "client lacks entitlements".
-            // activateFileViewerSelecting hands off to Finder over an Apple
-            // Event and returns immediately, so give it a moment to actually
-            // act on it before we let the scope go.
-            if let error {
-                NSAlert(error: error).runModal()
-            } else if let url {
-                NSWorkspace.shared.activateFileViewerSelecting([url])
-            }
-
-            if let folder = self.recordingScopedFolder {
-                self.recordingScopedFolder = nil
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                    folder.stopAccessingSecurityScopedResource()
+            DispatchQueue.main.async {
+                guard let self else { return }
+                // Reveal *before* releasing the folder's security scope —
+                // Finder needs the sandbox extension held to open the path.
+                if let error {
+                    AppAlert.show(error: error, title: "Recording Failed")
+                } else if let url {
+                    NSWorkspace.shared.activateFileViewerSelecting([url])
                 }
+                self.releaseScopeLater()
             }
         }
     }
 
-    /// Full-color icon in place of the template one, since a status item's
-    /// contentTintColor has proven unreliable — it rendered as near-black on
-    /// test hardware regardless of the color used. Swapping the actual image
-    /// for a genuinely non-template one sidesteps that entirely.
+    private func releaseScopeLater() {
+        guard let folder = recordingScopedFolder else { return }
+        recordingScopedFolder = nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            folder.stopAccessingSecurityScopedResource()
+        }
+    }
+
+    private func handleUnexpectedStop(url: URL?, error: Error) {
+        endRecordingIndicator()
+        if let url { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+        releaseScopeLater()
+        let partial = url != nil ? " The part recorded so far has been saved." : ""
+        AppAlert.show(title: "Recording Stopped Unexpectedly",
+                      message: error.localizedDescription + partial)
+    }
+
     private static let idleIcon: NSImage = {
         let img = NSImage(systemSymbolName: "camera.viewfinder", accessibilityDescription: "SnipClip")!
         img.isTemplate = true
         return img
     }()
 
+    /// A genuinely non-template red image — contentTintColor proved unreliable.
     private static let recordingIcon: NSImage = {
         let config = NSImage.SymbolConfiguration(paletteColors: [NSColor(srgbRed: 1.0, green: 0.23, blue: 0.19, alpha: 1.0)])
         let img = NSImage(systemSymbolName: "camera.viewfinder", accessibilityDescription: "SnipClip — Recording")!
@@ -309,13 +442,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return img
     }()
 
-    /// Red icon + a live "mm:ss" elapsed time, both in the menu bar itself
-    /// and in the menu item — a basic but visible recording indicator.
     private func beginRecordingIndicator() {
         statusButton?.image = AppDelegate.recordingIcon
         recordingStart = Date()
+        recordFullItem.isHidden = true
+        recordRegionItem.isHidden = true
+        stopRecordingItem.isHidden = false
         updateRecordingTitle()
 
+        recordingTimer?.invalidate()
         let t = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
             self?.updateRecordingTitle()
         }
@@ -329,7 +464,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         recordingStart = nil
         statusButton?.image = AppDelegate.idleIcon
         statusButton?.title = ""
-        recordingItem.title = recordingIdleTitle()
+        recordFullItem.isHidden = false
+        recordRegionItem.isHidden = false
+        stopRecordingItem.isHidden = true
     }
 
     private func updateRecordingTitle() {
@@ -337,42 +474,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let elapsed = Int(Date().timeIntervalSince(start))
         let text = String(format: "%d:%02d", elapsed / 60, elapsed % 60)
         statusButton?.title = " \(text)"
-        recordingItem.title = "Stop Screen Recording (\(text))"
-    }
-
-    /// Always surfaces visible feedback — never fails silently, even if the
-    /// system permission prompt or Settings deep link doesn't fire (seen on
-    /// some macOS versions where the prompt is suppressed for the first call).
-    /// - Parameter onGranted: run immediately if access turns out to already
-    ///   be granted (a stale preflight check). Not called if the user has to
-    ///   go grant it in Settings — that always requires a relaunch anyway.
-    private func requestScreenRecordingAccess(onGranted: @escaping () -> Void = {}) {
-        NSApp.activate(ignoringOtherApps: true)
-        let alreadyGranted = CGRequestScreenCaptureAccess()
-        if alreadyGranted {
-            onGranted()
-            return
-        }
-
-        let alert = NSAlert()
-        alert.messageText = "Screen Recording Access Needed"
-        alert.informativeText = "SnipClip needs Screen Recording permission to capture your screen. Click \"Open Settings\", then enable SnipClip under Privacy & Security → Screen Recording."
-        alert.addButton(withTitle: "Open Settings")
-        alert.addButton(withTitle: "Cancel")
-        alert.alertStyle = .informational
-        NSApp.activate(ignoringOtherApps: true)
-        let response = alert.runModal()
-        guard response == .alertFirstButtonReturn else { return }
-
-        let candidates = [
-            "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
-            "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_ScreenCapture"
-        ]
-        for urlString in candidates {
-            if let url = URL(string: urlString), NSWorkspace.shared.open(url) {
-                return
-            }
-        }
-        NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/System Settings.app"))
+        applyShortcut(.toggleRecording, to: stopRecordingItem, title: "Stop Recording (\(text))")
     }
 }

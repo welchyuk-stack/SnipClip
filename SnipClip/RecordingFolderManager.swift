@@ -39,7 +39,10 @@ final class RecordingFolderManager {
         NSApp.activate(ignoringOtherApps: true)
         panel.begin { response in
             guard response == .OK, let url = panel.url else { completion(nil); return }
-            self.saveBookmark(for: url)
+            if !self.saveBookmark(for: url) {
+                AppAlert.show(title: "Couldn't Remember This Folder",
+                              message: "SnipClip can use \(url.lastPathComponent) for now, but won't be able to access it after you quit. Try choosing the folder again, or pick a different one.")
+            }
             completion(url)
         }
     }
