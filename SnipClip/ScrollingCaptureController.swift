@@ -40,6 +40,7 @@ final class ScrollingCaptureController: @unchecked Sendable {
     private let tickInterval: TimeInterval = 0.35
     private let minShift = 6              // ignore sub-pixel jitter
     private let matchThreshold = 6.0      // avg per-sample byte diff, 0–255 scale
+    private static let signatureBuckets = 24
     private let maxCompositeHeight = 12000
 
     func start() {
@@ -132,27 +133,46 @@ final class ScrollingCaptureController: @unchecked Sendable {
         guard let newSignature = ScrollingCaptureController.rowSignature(rep: rep),
               newSignature.count == lastSignature.count, height > 40 else { return }
 
-        let minOverlap = max(40, height / 3)
-        var bestShift = 0
-        var bestError = Double.greatestFiniteMagnitude
-
-        var s = minShift
-        while s <= height - minOverlap {
-            let compareCount = height - s
+        func error(atShift s: Int) -> Double {
+            // newFrame row i shows the same content as lastFrame row
+            // (i + s) once the view has scrolled down by s rows.
+            let k = ScrollingCaptureController.signatureBuckets
+            let compareCount = (height - s) * k
+            let offset = s * k
             var total = 0.0
             var i = 0
             while i < compareCount {
-                // newFrame row i shows the same content as lastFrame row
-                // (i + s) once the view has scrolled down by s rows.
-                total += abs(newSignature[i] - lastSignature[i + s])
+                total += abs(newSignature[i] - lastSignature[i + offset])
                 i += 1
             }
-            let avg = total / Double(compareCount)
-            if avg < bestError {
-                bestError = avg
-                bestShift = s
-            }
+            return total / Double(compareCount)
+        }
+
+        // Nothing moved since the last frame. Without this check, content with
+        // evenly spaced rows (lines of text, table rows) matches a one-row
+        // shift almost perfectly and gets appended again on every tick.
+        let unchangedError = error(atShift: 0)
+        if unchangedError < 0.5 { return }
+
+        let minOverlap = max(40, height / 3)
+        var errors: [(shift: Int, error: Double)] = []
+        var s = minShift
+        while s <= height - minOverlap {
+            errors.append((s, error(atShift: s)))
             s += 1
+        }
+        guard let minError = errors.map(\.error).min() else { return }
+
+        // Repeating content can match several shifts equally well; the smallest
+        // one is the likeliest for a single tick of scrolling. A shift that
+        // matches no better than "not moved" isn't a real scroll.
+        let tolerance = max(0.05, minError * 0.05)
+        let best = errors.first { $0.error <= minError + tolerance }!
+        let bestShift = best.shift
+        let bestError = best.error
+        guard bestError < unchangedError else {
+            self.lastSignature = newSignature
+            return
         }
 
         guard bestError < matchThreshold, bestShift > 0 else {
@@ -291,19 +311,25 @@ final class ScrollingCaptureController: @unchecked Sendable {
         guard width > 0, height > 0 else { return nil }
         let bytesPerRow = rep.bytesPerRow
         let bytesPerPixel = 4
-        let stride = max(1, width / 200)
+        let stride = max(1, width / 240)
+        let buckets = ScrollingCaptureController.signatureBuckets
 
-        var sig = [Double](repeating: 0, count: height)
-        let sampleCount = max(1, (width + stride - 1) / stride)
+        // One average per horizontal bucket per row (row-major). A single
+        // whole-row average makes every line of text look identical, so
+        // repeating content couldn't be told apart.
+        var sig = [Double](repeating: 0, count: height * buckets)
+        var counts = [Int](repeating: 0, count: buckets)
+        var x = 0
+        while x < width { counts[min(buckets - 1, x * buckets / width)] += 1; x += stride }
         for y in 0..<height {
-            var sum = 0
-            var x = 0
             let rowBase = y * bytesPerRow
+            let sigBase = y * buckets
+            x = 0
             while x < width {
-                sum += Int(data[rowBase + x * bytesPerPixel])
+                sig[sigBase + min(buckets - 1, x * buckets / width)] += Double(data[rowBase + x * bytesPerPixel])
                 x += stride
             }
-            sig[y] = Double(sum) / Double(sampleCount)
+            for b in 0..<buckets where counts[b] > 0 { sig[sigBase + b] /= Double(counts[b]) }
         }
         return sig
     }
