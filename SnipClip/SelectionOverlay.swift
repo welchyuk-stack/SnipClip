@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 
 // MARK: - Controller
 
@@ -16,6 +17,11 @@ final class SelectionOverlayController {
     private var windows: [SelectionOverlayWindow] = []
     private var views: [SelectionOverlayView] = []
     private var monitor: Any?
+    // The local monitor only sees keys while SnipClip is active, and activation
+    // isn't guaranteed when the overlay is opened from another app's hotkey.
+    // A temporary global Esc hotkey makes cancel work regardless.
+    private var escHotKey: EventHotKeyRef?
+    private var escHandler: EventHandlerRef?
     private var completion: ((Selection?) -> Void)?
     /// Window rects (global NSScreen coords), frontmost first.
     fileprivate var windowRects: [NSRect] = []
@@ -128,11 +134,35 @@ final class SelectionOverlayController {
             }
         }
 
+        registerEscHotKey()
         NSApp.activate(ignoringOtherApps: true)
         let mouse = NSEvent.mouseLocation
         for win in windows { win.orderFrontRegardless() }
         (windows.first { NSMouseInRect(mouse, $0.frame, false) } ?? windows.first)?.makeKey()
         mouseMoved()
+    }
+
+    private func registerEscHotKey() {
+        var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard),
+                                 eventKind: UInt32(kEventHotKeyPressed))
+        InstallEventHandler(GetApplicationEventTarget(), { _, event, _ -> OSStatus in
+            var hkID = EventHotKeyID()
+            GetEventParameter(event, EventParamName(kEventParamDirectObject),
+                              EventParamType(typeEventHotKeyID), nil,
+                              MemoryLayout<EventHotKeyID>.size, nil, &hkID)
+            guard hkID.signature == 0x534E4553 else { return OSStatus(eventNotHandledErr) }
+            DispatchQueue.main.async { SelectionOverlayController.shared.finish(nil) }
+            return noErr
+        }, 1, &spec, nil, &escHandler)
+        let hkID = EventHotKeyID(signature: 0x534E4553, id: 1)
+        RegisterEventHotKey(UInt32(kVK_Escape), 0, hkID, GetApplicationEventTarget(), 0, &escHotKey)
+    }
+
+    private func unregisterEscHotKey() {
+        if let escHotKey { UnregisterEventHotKey(escHotKey) }
+        if let escHandler { RemoveEventHandler(escHandler) }
+        escHotKey = nil
+        escHandler = nil
     }
 
     fileprivate func mouseMoved() {
@@ -154,6 +184,7 @@ final class SelectionOverlayController {
         guard isActive else { return }
         isActive = false
         if let monitor { NSEvent.removeMonitor(monitor) }
+        unregisterEscHotKey()
         monitor = nil
         for win in windows { win.orderOut(nil) }
         windows = []
