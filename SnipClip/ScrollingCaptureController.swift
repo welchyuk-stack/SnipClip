@@ -11,7 +11,9 @@ import AppKit
 /// top-vs-bottom-origin ambiguity that CGImage.cropping(to:) and a raw
 /// CGContext's drawing coordinate space otherwise carry. Composite growth is
 /// just concatenating raw row bytes onto the end of a buffer, not a redraw.
-final class ScrollingCaptureController {
+// Main-thread only; the Sendable conformance lets it be referenced from
+// @Sendable timer and Task closures that always hop back to main.
+final class ScrollingCaptureController: @unchecked Sendable {
     static let shared = ScrollingCaptureController()
     private init() {}
 
@@ -70,7 +72,8 @@ final class ScrollingCaptureController {
         b.orderFrontRegardless()
         border = b
 
-        Task { @MainActor in
+        Task { @MainActor [weak self] in
+            guard let self else { return }
             // Let the window server learn about the HUD/border before we
             // snapshot the shareable window list.
             try? await Task.sleep(nanoseconds: 150_000_000)
@@ -94,18 +97,19 @@ final class ScrollingCaptureController {
             self.compositeBuffer = Array(UnsafeBufferPointer(start: data, count: self.bytesPerRow * self.compositeHeight))
             self.lastSignature = ScrollingCaptureController.rowSignature(rep: rep)
 
+            // Scheduled on the main run loop, so the block always runs on main.
             let t = Timer(timeInterval: self.tickInterval, repeats: true) { [weak self] _ in
-                self?.tick()
+                MainActor.assumeIsolated { self?.tick() }
             }
             RunLoop.main.add(t, forMode: .common)
             self.timer = t
         }
     }
 
-    private func captureFrame(capturer: DisplayCapturer, rect: NSRect, screen: NSScreen) async -> NSBitmapImageRep? {
+    @MainActor private func captureFrame(capturer: DisplayCapturer, rect: NSRect, screen: NSScreen) async -> NSBitmapImageRep? {
         guard let full = await capturer.capture(),
               let cropped = ScreenCapture.crop(full, screen: screen, rect: rect) else { return nil }
-        return await MainActor.run { ScrollingCaptureController.normalizedBitmap(from: cropped) }
+        return ScrollingCaptureController.normalizedBitmap(from: cropped)
     }
 
     private func tick() {

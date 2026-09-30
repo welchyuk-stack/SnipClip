@@ -10,7 +10,9 @@ import CoreVideo
 /// - `state`, `stream`, border window, pending callbacks: MAIN only.
 /// - AVAssetWriter, its inputs, `sessionStarted`, `finished`: `writerQueue` only
 ///   (which is also the SCStreamOutput sample-handler queue).
-final class ScreenRecorder: NSObject {
+// State lives on main and the writer is confined to writerQueue, so
+// cross-queue references are safe by construction.
+final class ScreenRecorder: NSObject, @unchecked Sendable {
     static let shared = ScreenRecorder()
 
     private enum State { case idle, starting, recording, stopping }

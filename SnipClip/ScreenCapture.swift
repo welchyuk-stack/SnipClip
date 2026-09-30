@@ -79,8 +79,8 @@ enum ScreenCapture {
             ?? NSScreen.main ?? NSScreen.screens[0]
     }
 
-    static func captureFullScreen() async -> NSImage? {
-        let screen = await MainActor.run { screenUnderMouse() }
+    @MainActor static func captureFullScreen() async -> NSImage? {
+        let screen = screenUnderMouse()
         guard let capturer = await DisplayCapturer.make(for: screen, excludingOwnWindows: true),
               let cg = await capturer.capture() else { return nil }
         return image(from: cg, pointSize: screen.frame.size)
