@@ -39,7 +39,7 @@ func buildMainMenu() -> NSMenu {
         item("Quit SnipClip", #selector(NSApplication.terminate(_:)), "q", target: NSApp),
     ])
     submenu("File", [
-        item("Save…", Selector(("saveDocument:")), "s"),
+        item("Save…", #selector(MarkupEditorWindow.saveDocument(_:)), "s"),
         item("Close", #selector(NSWindow.performClose(_:)), "w"),
     ])
     submenu("Edit", [
