@@ -81,7 +81,7 @@ final class PreferencesWindow: NSWindow {
         ])
         shortcutGrid.rowSpacing = 8
         shortcutGrid.columnSpacing = 8
-        shortcutGrid.rowAlignment = .firstBaseline
+        shortcutGrid.rowAlignment = .none
         shortcutGrid.column(at: 0).xPlacement = .trailing
         for i in 0..<shortcutGrid.numberOfRows { shortcutGrid.row(at: i).yPlacement = .center }
 

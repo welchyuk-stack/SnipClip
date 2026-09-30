@@ -49,6 +49,7 @@ final class MarkupCanvasView: NSView {
         self.image = image
         self.imageSize = NSSize(width: max(1, image.size.width), height: max(1, image.size.height))
         super.init(frame: NSRect(origin: .zero, size: imageSize))
+        clipsToBounds = true
     }
 
     required init?(coder: NSCoder) { fatalError() }

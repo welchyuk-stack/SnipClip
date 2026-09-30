@@ -176,11 +176,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func thumbnail(for image: NSImage) -> NSImage? {
         let src = image.size
         guard src.width > 0, src.height > 0 else { return nil }
-        let box: CGFloat = 32
-        let scale = min(box / src.width, box / src.height)
-        let size = NSSize(width: max(1, src.width * scale), height: max(1, src.height * scale))
-        return NSImage(size: size, flipped: false) { rect in
-            image.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1.0)
+        // Fixed box so every row lines up and very wide/tall captures don't
+        // shrink to an invisible sliver.
+        let box = NSSize(width: 40, height: 28)
+        let scale = min(box.width / src.width, box.height / src.height)
+        let fit = NSSize(width: max(2, src.width * scale), height: max(2, src.height * scale))
+        return NSImage(size: box, flipped: false) { rect in
+            let r = NSRect(x: (rect.width - fit.width) / 2, y: (rect.height - fit.height) / 2,
+                           width: fit.width, height: fit.height).integral
+            image.draw(in: r, from: .zero, operation: .sourceOver, fraction: 1.0)
+            NSColor.separatorColor.setStroke()
+            NSBezierPath(rect: r.insetBy(dx: 0.5, dy: 0.5)).stroke()
             return true
         }
     }

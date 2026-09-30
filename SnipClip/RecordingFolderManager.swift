@@ -22,7 +22,12 @@ final class RecordingFolderManager {
     }
 
     var displayPath: String {
-        folderURL?.path ?? "Not set — choose a folder"
+        guard let path = folderURL?.path else { return "Not set — choose a folder" }
+        // NSHomeDirectory() is the sandbox container, so resolve the real home.
+        guard let pw = getpwuid(getuid()), let dir = pw.pointee.pw_dir else { return path }
+        let home = String(cString: dir)
+        if path == home { return "~" }
+        return path.hasPrefix(home + "/") ? "~" + path.dropFirst(home.count) : path
     }
 
     /// Presents a folder picker. Calls back with the chosen URL, or nil if the

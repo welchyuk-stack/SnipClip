@@ -315,13 +315,23 @@ private final class SelectionOverlayView: NSView {
 
         let center = NSRect(x: loupe.minX + CGFloat(n / 2) * cell, y: loupe.minY + CGFloat(n / 2) * cell,
                             width: cell, height: cell)
-        NSColor.white.setStroke()
-        let cb = NSBezierPath(rect: center)
-        cb.lineWidth = 1
+        // Dark + light double strokes so the loupe and its centre pixel stay
+        // visible over both white and black content.
+        let cb = NSBezierPath(rect: center.insetBy(dx: -0.5, dy: -0.5))
+        cb.lineWidth = 2
+        NSColor.black.withAlphaComponent(0.8).setStroke()
         cb.stroke()
+        let cbInner = NSBezierPath(rect: center.insetBy(dx: 0.5, dy: 0.5))
+        cbInner.lineWidth = 1
+        NSColor.white.setStroke()
+        cbInner.stroke()
+        let outer = NSBezierPath(roundedRect: loupe.insetBy(dx: -1.5, dy: -1.5), xRadius: 9.5, yRadius: 9.5)
+        outer.lineWidth = 1.5
+        NSColor.black.withAlphaComponent(0.55).setStroke()
+        outer.stroke()
         let outline = NSBezierPath(roundedRect: loupe, xRadius: 8, yRadius: 8)
         outline.lineWidth = 2
-        NSColor.white.withAlphaComponent(0.9).setStroke()
+        NSColor.white.withAlphaComponent(0.95).setStroke()
         outline.stroke()
     }
 

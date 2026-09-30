@@ -476,6 +476,10 @@ private final class CanvasContainerView: NSView {
         self.canvas = canvas
         super.init(frame: frame)
         wantsLayer = true
+        // Since the macOS 14 SDK views don't clip by default, and dirtyRect
+        // can extend past bounds — unclipped, this fill painted over the
+        // sidebar next to it.
+        clipsToBounds = true
         addSubview(canvas)
     }
 
@@ -483,7 +487,7 @@ private final class CanvasContainerView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         NSColor.underPageBackgroundColor.setFill()
-        dirtyRect.fill()
+        bounds.intersection(dirtyRect).fill()
     }
 
     override func resizeSubviews(withOldSize oldSize: NSSize) {

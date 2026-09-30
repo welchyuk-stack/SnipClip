@@ -1,7 +1,13 @@
 import AppKit
 
 let app = NSApplication.shared
+#if DEBUG
+// UI automation tools can't target accessory apps; opt in to a regular
+// activation policy for test runs only.
+app.setActivationPolicy(ProcessInfo.processInfo.environment["SNIPCLIP_UITEST"] == nil ? .accessory : .regular)
+#else
 app.setActivationPolicy(.accessory)
+#endif
 let delegate = AppDelegate()
 app.delegate = delegate
 
