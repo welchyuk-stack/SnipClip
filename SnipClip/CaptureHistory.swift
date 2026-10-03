@@ -66,6 +66,15 @@ final class CaptureHistory {
         pressureSource = source
     }
 
+    /// Drops decoded images (they reload lazily from disk) and returns freed
+    /// heap pages to the system. Full-resolution captures can push the heap
+    /// to hundreds of MB, and macOS otherwise keeps those pages attributed
+    /// to us long after the editor has closed.
+    func trimMemory() {
+        entries.forEach { $0.cachedImage = nil }
+        malloc_zone_pressure_relief(nil, 0)
+    }
+
     private var indexURL: URL { directory.appendingPathComponent("index.json") }
     private func fileURL(for id: UUID) -> URL { directory.appendingPathComponent("\(id.uuidString).png") }
 

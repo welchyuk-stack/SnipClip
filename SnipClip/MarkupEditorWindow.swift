@@ -22,6 +22,11 @@ final class MarkupEditorController: NSObject, NSWindowDelegate {
         guard let win = notification.object as? MarkupEditorWindow else { return }
         win.saveStateToEntry()
         if editorWindow === win { editorWindow = nil }
+        // Let the window and its image deallocate before trimming.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+            guard self.editorWindow == nil else { return }
+            CaptureHistory.shared.trimMemory()
+        }
     }
 
     /// Closes any open editor so it can't be captured in a later screenshot.

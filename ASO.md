@@ -20,10 +20,10 @@ Capture, annotate, and share
 screenshot,markup,annotation,drawing,capture,edit,tools,image,arrows,shapes,highlight,pen
 ```
 
-## Promotional Text — 170 / 170 chars
+## Promotional Text — 156 / 170 chars
 (can be updated anytime without a new build)
 ```
-Capture and annotate screenshots instantly. Draw arrows, shapes, text, and highlights in seconds.
+Snip any area or window with ⌥⇧⌘S, then mark it up with arrows, steps, blur, highlights and text. Scrolling capture and screen recording built in. Pay once.
 ```
 
 ---
@@ -31,45 +31,60 @@ Capture and annotate screenshots instantly. Draw arrows, shapes, text, and highl
 ## Description
 
 ```
-Capture, markup, and share in seconds.
+Snip it. Mark it up. Share it.
 
-SnipClip makes it easy to annotate screenshots right on your Mac. Press ⌘⇧S, select an area, 
-and instantly access powerful markup tools — no extra steps, no complexity.
+SnipClip lives in your Mac's menu bar. Press ⌥⇧⌘S, drag over any area (or click a window to
+capture it), and annotate straight away with fast, focused markup tools.
 
 MARKUP TOOLS
-• Pen — freehand drawing with adjustable size and color
+• Pen — freehand drawing
 • Arrow — point out exactly what matters
-• Rectangle & Circle — highlight regions
+• Rectangle & Circle — frame the important bits
+• Highlighter — make a line of text stand out
 • Text — add notes and labels
-• AI tool — intelligent markup assistance
-• Full color picker with opacity control
+• Step — numbered badges for step-by-step guides
+• Blur — pixelate emails, names and other private details
+• Crop — trim to just what matters
+• Select — move and adjust anything you've drawn
+• Colour swatches and three line widths, with undo and redo
+
+MORE WAYS TO CAPTURE
+• Capture Region or Capture Full Screen
+• Click any window to capture just that window
+• Timed Capture for menus and hover states
+• Scrolling Capture for long pages
+• Record Full Screen or Record Selected Region (⌥⇧⌘R)
+• Recent Captures, one click away in the menu bar
 
 WORKFLOW
-1. Press ⌘⇧S to start capturing
-2. Drag to select the area you want to annotate
-3. Use the toolbar to add arrows, shapes, text, and more
-4. Copy and share instantly
+1. Press ⌥⇧⌘S
+2. Drag to select an area, or click a window
+3. Annotate with the markup tools
+4. Copy, save, or drag it straight into any app
 
-DESIGNED FOR SPEED
-SnipClip lives in your menu bar and launches instantly. No toolbars cluttering your screen, 
-no waiting — just fast, focused markup.
+MADE FOR YOUR MAC
+Lives quietly in your menu bar, launches instantly, and lets you set your own shortcuts in
+Settings. Works completely offline — your captures never leave your Mac. No account, no ads,
+no tracking.
 
-BUILT ON YOUR MAC
-Works completely offline. All your screenshots stay on your Mac — nothing is uploaded or 
-tracked. Full control, zero distractions.
+PAY ONCE
+One simple price. No subscription, no in-app purchases.
 
-TRIAL & PURCHASE
-24-hour free trial to test all features. Unlock unlimited captures with a one-time purchase 
-of £1.99 — no subscriptions, no ads.
-
-Perfect for creators, developers, and anyone who needs to annotate screenshots quickly.
+Perfect for developers, designers, support teams, teachers, and anyone who explains things with
+screenshots.
 ```
 
-## What's New (v1.0)
+## What's New
 ```
-SnipClip v1.0 — Capture, annotate, and share screenshots instantly. Press ⌘⇧S, select an area, 
-and use intuitive markup tools (pen, arrows, shapes, text) to highlight what matters. One-time 
-purchase unlock, no subscriptions. We'd love your feedback!
+A big update to SnipClip:
+• New markup tools: Step (numbered badges), Blur, Crop, Highlighter and Select
+• Colour swatches and three line widths
+• Click any window to capture just that window
+• Magnifier loupe for pixel-precise selections
+• Scrolling Capture, plus region and full-screen recording
+• Recent Captures in the menu bar
+• A resizable editor with a redesigned sidebar
+• New Settings window with custom shortcuts, and a Welcome guide
 ```
 
 ---
@@ -81,9 +96,7 @@ purchase unlock, no subscriptions. We'd love your feedback!
 | Primary category | Productivity |
 | Secondary category | Utilities |
 | Age rating | 4+ |
-| Price (base) | Free (with In-App Purchase) |
-| In-App Purchase | SnipClip Unlock — one-time (£1.99 / $1.99), Non-Consumable |
-| IAP product ID | `com.snipclip.mac.unlock` |
+| Price | £1.99 / $1.99, paid up front (no free trial, no in-app purchases) |
 | Copyright | © 2026 Luke Welch, trading as SnipClip |
 
 ### Privacy (App Privacy questionnaire)
@@ -99,8 +112,11 @@ purchase unlock, no subscriptions. We'd love your feedback!
 
 ## Screenshots
 
-4 × 1280×800 (16:10), black backgrounds:
-1. **Menu** — SnipClip menu bar menu showing "Capture Area ⌘⇧S"
-2. **Color Picker** — Color customization showing palette and opacity
-3. **Markup Example** — Screenshot with blue path, red shapes, text annotation "Move it"
-4. **Editor** — Full SnipClip editor interface with toolbar visible
+6 Mac screenshots, navy/blue design, generated from `aso/config.json` with the aso-screenshots skill.
+Upload-ready in `Marketing/AppStore-Submission/`: `Mac-2880x1800/` or `Mac-1280x800/` (upload one set, in order):
+1. **Hero** — "Snip it. Mark it up. Share it." Annotated capture with steps, arrow, highlight, blur and tool palette
+2. **Select** — "Drag to snip. Click for a window." Selection overlay with size readout
+3. **Menu bar** — "Lives quietly in your menu bar". Status menu
+4. **Modes** — "Scroll it. Time it. Record it." Scrolling Capture in progress
+5. **Settings** — "Your shortcuts, your way". Settings window
+6. **Price** — "Pay once. No subscription." Welcome window + "Works offline · No data collected"

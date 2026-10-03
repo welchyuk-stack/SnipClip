@@ -404,6 +404,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         ScreenRecorder.shared.stop { [weak self] url, error in
             DispatchQueue.main.async {
                 guard let self else { return }
+                CaptureHistory.shared.trimMemory()
                 // Reveal *before* releasing the folder's security scope —
                 // Finder needs the sandbox extension held to open the path.
                 if let error {
