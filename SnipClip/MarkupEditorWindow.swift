@@ -281,6 +281,7 @@ final class MarkupEditorWindow: NSWindow, NSDraggingSource {
         NSPasteboard.general.writeObjects([img])
         NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
         copyBtn.showConfirmation()
+        ReviewPrompter.recordSuccessfulExport()
     }
 
     @objc func undo(_ sender: Any?) {
@@ -334,6 +335,7 @@ final class MarkupEditorWindow: NSWindow, NSDraggingSource {
             do {
                 try data.write(to: url, options: .atomic)
                 self.saveBtn.showConfirmation()
+                ReviewPrompter.recordSuccessfulExport()
             } catch {
                 AppAlert.show(error: error, title: "Couldn't Save Image")
             }

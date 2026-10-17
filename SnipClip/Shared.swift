@@ -1,4 +1,5 @@
 import AppKit
+import StoreKit
 
 // Shared helpers used across capture, recording, editor and app-shell code.
 
@@ -62,5 +63,35 @@ enum CaptureDelivery {
         }
         let entry = CaptureHistory.shared.record(image)
         MarkupEditorController.shared.show(image: image, entry: entry)
+    }
+}
+
+// MARK: - Review prompt
+
+/// Asks for an App Store rating via StoreKit after the user has exported
+/// from the editor a few times. At most once per app version; macOS applies
+/// its own frequency cap on top and may show nothing. No network or tracking.
+enum ReviewPrompter {
+    private static let exportCountKey = "snipclip_review_export_count"
+    private static let lastPromptedVersionKey = "snipclip_review_last_prompted_version"
+    private static let requiredExports = 3
+
+    /// Call after a successful Copy or Save from the markup editor.
+    static func recordSuccessfulExport() {
+        let defaults = UserDefaults.standard
+        let count = defaults.integer(forKey: exportCountKey) + 1
+        defaults.set(count, forKey: exportCountKey)
+
+        let version = AppSettings.appVersion
+        guard count >= requiredExports,
+              defaults.string(forKey: lastPromptedVersionKey) != version else { return }
+
+        // Let the Copied/Saved confirmation play first.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            guard !ScreenRecorder.shared.isActive,
+                  defaults.string(forKey: lastPromptedVersionKey) != version else { return }
+            defaults.set(version, forKey: lastPromptedVersionKey)
+            SKStoreReviewController.requestReview()
+        }
     }
 }
