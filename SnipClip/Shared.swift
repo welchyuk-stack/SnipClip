@@ -24,6 +24,7 @@ enum AppSettings {
     private static let copyOnCaptureKey = "snipclip_copy_on_capture"
     private static let recordSystemAudioKey = "snipclip_record_system_audio"
     private static let saveFormatKey = "snipclip_save_format"
+    private static let saveWithoutAskingKey = "snipclip_save_without_asking"
 
     /// Copy each new capture to the clipboard as soon as it's taken.
     static var copyOnCapture: Bool {
@@ -34,6 +35,13 @@ enum AppSettings {
     static var recordSystemAudio: Bool {
         get { UserDefaults.standard.bool(forKey: recordSystemAudioKey) }
         set { UserDefaults.standard.set(newValue, forKey: recordSystemAudioKey) }
+    }
+
+    /// The editor's Save button writes straight into the screenshots folder
+    /// with a timestamped name instead of showing a save panel.
+    static var saveWithoutAsking: Bool {
+        get { UserDefaults.standard.bool(forKey: saveWithoutAskingKey) }
+        set { UserDefaults.standard.set(newValue, forKey: saveWithoutAskingKey) }
     }
 
     /// "png" or "jpeg" — the format last chosen in a save panel.

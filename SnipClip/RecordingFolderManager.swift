@@ -1,15 +1,22 @@
 import AppKit
 
-/// Persists the user's chosen output folder for screen recordings.
-/// Sandboxed apps only get access to folders a user explicitly picked
-/// through a panel, and only for that run — a security-scoped bookmark is
-/// what lets that access survive relaunches.
+/// Persists a user-chosen output folder (one for recordings, one for
+/// screenshots). Sandboxed apps only get access to folders a user explicitly
+/// picked through a panel, and only for that run — a security-scoped
+/// bookmark is what lets that access survive relaunches.
 final class RecordingFolderManager {
-    static let shared = RecordingFolderManager()
+    static let shared = RecordingFolderManager(defaultsKey: "snipclip_recording_folder_bookmark",
+                                               panelTitle: "Choose Recordings Folder")
+    static let screenshots = RecordingFolderManager(defaultsKey: "snipclip_screenshot_folder_bookmark",
+                                                    panelTitle: "Choose Screenshots Folder")
 
-    private let defaultsKey = "snipclip_recording_folder_bookmark"
+    private let defaultsKey: String
+    private let panelTitle: String
 
-    private init() {}
+    private init(defaultsKey: String, panelTitle: String) {
+        self.defaultsKey = defaultsKey
+        self.panelTitle = panelTitle
+    }
 
     /// Nil until the user has picked a folder at least once.
     var folderURL: URL? {
@@ -34,7 +41,7 @@ final class RecordingFolderManager {
     /// user cancelled.
     func choose(completion: @escaping (URL?) -> Void) {
         let panel = NSOpenPanel()
-        panel.title = "Choose Recordings Folder"
+        panel.title = panelTitle
         panel.prompt = "Choose"
         panel.canChooseFiles = false
         panel.canChooseDirectories = true

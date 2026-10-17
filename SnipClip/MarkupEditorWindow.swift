@@ -301,7 +301,13 @@ final class MarkupEditorWindow: NSWindow, NSDraggingSource {
 
     @objc func saveDocument(_ sender: Any?) {
         canvas.commitPendingText()
+        let folder = RecordingFolderManager.screenshots.folderURL
+        if AppSettings.saveWithoutAsking, let folder {
+            quickSave(to: folder)
+            return
+        }
         let panel = NSSavePanel()
+        if let folder { panel.directoryURL = folder }
         let isJPEG = AppSettings.saveFormat == "jpeg"
         panel.allowedContentTypes = [isJPEG ? .jpeg : .png]
         panel.nameFieldStringValue = AppSettings.timestampedFileName(ext: isJPEG ? "jpg" : "png")
@@ -339,6 +345,28 @@ final class MarkupEditorWindow: NSWindow, NSDraggingSource {
             } catch {
                 AppAlert.show(error: error, title: "Couldn't Save Image")
             }
+        }
+    }
+
+    /// Saves with a timestamped name into the chosen screenshots folder, no panel.
+    private func quickSave(to folder: URL) {
+        let jpeg = AppSettings.saveFormat == "jpeg"
+        guard let rep = renderFinalRep(),
+              let data = jpeg
+                ? rep.representation(using: .jpeg, properties: [.compressionFactor: 0.9])
+                : rep.representation(using: .png, properties: [:]) else {
+            AppAlert.show(title: "Couldn't Save Image", message: "The image couldn't be encoded.")
+            return
+        }
+        let scoped = folder.startAccessingSecurityScopedResource()
+        defer { if scoped { folder.stopAccessingSecurityScopedResource() } }
+        let url = folder.appendingPathComponent(AppSettings.timestampedFileName(ext: jpeg ? "jpg" : "png"))
+        do {
+            try data.write(to: url, options: .withoutOverwriting)
+            saveBtn.showConfirmation()
+            ReviewPrompter.recordSuccessfulExport()
+        } catch {
+            AppAlert.show(error: error, title: "Couldn't Save Image")
         }
     }
 

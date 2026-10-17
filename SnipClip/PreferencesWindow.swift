@@ -34,6 +34,8 @@ final class PreferencesWindow: NSWindow {
     private var captureRecorder: ShortcutRecorderView!
     private var recordingRecorder: ShortcutRecorderView!
     private var folderLabel: NSTextField!
+    private var shotFolderLabel: NSTextField!
+    private var saveWithoutAskingBox: NSButton!
     private var loginCheckbox: NSButton!
 
     init() {
@@ -95,6 +97,22 @@ final class PreferencesWindow: NSWindow {
                                target: self, action: #selector(copyToggled(_:)))
         copyBox.state = AppSettings.copyOnCapture ? .on : .off
 
+        let shotPath = NSTextField(labelWithString: RecordingFolderManager.screenshots.displayPath)
+        shotPath.textColor = .secondaryLabelColor
+        shotPath.lineBreakMode = .byTruncatingMiddle
+        shotPath.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        shotFolderLabel = shotPath
+        let shotChoose = NSButton(title: "Choose…", target: self, action: #selector(chooseShotFolderTapped))
+        let shotFolderRow = NSStackView(views: [NSTextField(labelWithString: "Save to:"), shotPath, shotChoose])
+        shotFolderRow.orientation = .horizontal
+        shotFolderRow.spacing = 8
+
+        let quickBox = NSButton(checkboxWithTitle: "Save without asking (Save goes straight to this folder)",
+                                target: self, action: #selector(saveWithoutAskingToggled(_:)))
+        quickBox.state = AppSettings.saveWithoutAsking ? .on : .off
+        quickBox.isEnabled = RecordingFolderManager.screenshots.folderURL != nil
+        saveWithoutAskingBox = quickBox
+
         let path = NSTextField(labelWithString: RecordingFolderManager.shared.displayPath)
         path.textColor = .secondaryLabelColor
         path.lineBreakMode = .byTruncatingMiddle
@@ -121,7 +139,7 @@ final class PreferencesWindow: NSWindow {
         let seps = (0..<3).map { _ in separator() }
         let stack = NSStackView(views: [
             header("Shortcuts"), shortcutGrid, hint, seps[0],
-            header("Capture"), copyBox, seps[1],
+            header("Capture"), copyBox, shotFolderRow, quickBox, seps[1],
             header("Recording"), folderRow, audioBox, seps[2],
             header("General"), login, footer,
         ])
@@ -131,7 +149,7 @@ final class PreferencesWindow: NSWindow {
         stack.edgeInsets = NSEdgeInsets(top: 20, left: 24, bottom: 16, right: 24)
         stack.setCustomSpacing(16, after: login)
         stack.translatesAutoresizingMaskIntoConstraints = false
-        for v in seps + [folderRow as NSView, hint] {
+        for v in seps + [folderRow as NSView, shotFolderRow, hint] {
             v.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -48).isActive = true
         }
         stack.widthAnchor.constraint(equalToConstant: 480).isActive = true
@@ -163,6 +181,18 @@ final class PreferencesWindow: NSWindow {
             guard url != nil else { return }
             self?.folderLabel.stringValue = RecordingFolderManager.shared.displayPath
         }
+    }
+
+    @objc private func chooseShotFolderTapped() {
+        RecordingFolderManager.screenshots.choose { [weak self] url in
+            guard url != nil, let self else { return }
+            self.shotFolderLabel.stringValue = RecordingFolderManager.screenshots.displayPath
+            self.saveWithoutAskingBox.isEnabled = true
+        }
+    }
+
+    @objc private func saveWithoutAskingToggled(_ sender: NSButton) {
+        AppSettings.saveWithoutAsking = sender.state == .on
     }
 
     @objc private func loginToggled() {
