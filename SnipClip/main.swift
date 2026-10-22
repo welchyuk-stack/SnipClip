@@ -40,6 +40,7 @@ func buildMainMenu() -> NSMenu {
     ])
     submenu("File", [
         item("Save…", #selector(MarkupEditorWindow.saveDocument(_:)), "s"),
+        item("Pin on Screen", #selector(MarkupEditorWindow.pinToScreen(_:)), "p"),
         item("Close", #selector(NSWindow.performClose(_:)), "w"),
     ])
     submenu("Edit", [
@@ -48,6 +49,7 @@ func buildMainMenu() -> NSMenu {
         .separator(),
         item("Cut", #selector(NSText.cut(_:)), "x"),
         item("Copy", #selector(NSText.copy(_:)), "c"),
+        item("Copy Text", #selector(MarkupEditorWindow.copyRecognizedText(_:)), "c", [.command, .shift]),
         item("Paste", #selector(NSText.paste(_:)), "v"),
         item("Delete", #selector(NSText.delete(_:)), ""),
         item("Select All", #selector(NSText.selectAll(_:)), "a"),

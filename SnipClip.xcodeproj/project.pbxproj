@@ -22,6 +22,8 @@
 		9020F6909D2212026CB53AD9 /* MarkupModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFFABC80297369CFC82EDA29 /* MarkupModel.swift */; };
 		9658659D2F16194547A122A9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80552FADE48E5410A4A62DB3 /* AppDelegate.swift */; };
 		A1AB904A949457D76E922589 /* Shared.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C72191AA771C65DC1BCF47B /* Shared.swift */; };
+		06EFE911FDED6994A0631942 /* PinnedImageWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B33D64A1BC5697B5392B51E /* PinnedImageWindow.swift */; };
+		1D60531386A5C54903607EDE /* TextRecognition.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC271054F86DD8ACD3C7A80E /* TextRecognition.swift */; };
 		BB3B65ED5DF99DDC183EB2DA /* RecordingFolderManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DABB191924A9694B0C403195 /* RecordingFolderManager.swift */; };
 		CE7601F5FBB9DE37925F2072 /* SelectionOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B1221435367768116822875 /* SelectionOverlay.swift */; };
 		D1E70C076D60AB9387596215 /* HotkeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DEB3EA7EFBE48A51367BCB7 /* HotkeyManager.swift */; };
@@ -42,6 +44,8 @@
 		6DEB3EA7EFBE48A51367BCB7 /* HotkeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyManager.swift; sourceTree = "<group>"; };
 		74CE2FC62134CC2DA8530788 /* ScreenRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenRecorder.swift; sourceTree = "<group>"; };
 		7C72191AA771C65DC1BCF47B /* Shared.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shared.swift; sourceTree = "<group>"; };
+		1B33D64A1BC5697B5392B51E /* PinnedImageWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinnedImageWindow.swift; sourceTree = "<group>"; };
+		EC271054F86DD8ACD3C7A80E /* TextRecognition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextRecognition.swift; sourceTree = "<group>"; };
 		7E1E7EF77550A79D8DBCD85C /* CaptureHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureHistory.swift; sourceTree = "<group>"; };
 		80552FADE48E5410A4A62DB3 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		89C2BF5FBB793981A46ABE3C /* TimedCaptureController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimedCaptureController.swift; sourceTree = "<group>"; };
@@ -91,6 +95,8 @@
 				1B9E84907962308A01B58D74 /* ScrollingCaptureController.swift */,
 				9B1221435367768116822875 /* SelectionOverlay.swift */,
 				7C72191AA771C65DC1BCF47B /* Shared.swift */,
+				1B33D64A1BC5697B5392B51E /* PinnedImageWindow.swift */,
+				EC271054F86DD8ACD3C7A80E /* TextRecognition.swift */,
 				A8A8DBF26F1C05A275A19DA8 /* SidebarButton.swift */,
 				640A97A0C1B67B19AA38A1EB /* SnipClip-Debug.entitlements */,
 				A9C55F7164E71FE167BAF6EC /* SnipClip.entitlements */,
@@ -185,6 +191,8 @@
 				1824A91BB2825EF5709CB3C8 /* ScrollingCaptureController.swift in Sources */,
 				CE7601F5FBB9DE37925F2072 /* SelectionOverlay.swift in Sources */,
 				A1AB904A949457D76E922589 /* Shared.swift in Sources */,
+				06EFE911FDED6994A0631942 /* PinnedImageWindow.swift in Sources */,
+				1D60531386A5C54903607EDE /* TextRecognition.swift in Sources */,
 				58DE131309F913ACD357BAA0 /* SidebarButton.swift in Sources */,
 				7136A26951FB059BC89371FA /* TimedCaptureController.swift in Sources */,
 				0927FB0E8F6E094D51FA5A2D /* WelcomeWindow.swift in Sources */,

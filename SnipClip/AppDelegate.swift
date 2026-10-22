@@ -103,6 +103,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         timed.submenu = timedSubmenu
         menu.addItem(timed)
         menu.addItem(makeItem("Scrolling Capture", #selector(startScrollingCapture)))
+        menu.addItem(makeItem("Capture Text", #selector(startTextCapture)))
+        menu.addItem(makeItem("Capture and Pin", #selector(startPinCapture)))
 
         menu.addItem(.separator())
         recordFullItem = makeItem("Record Full Screen", #selector(recordFullScreen))
@@ -301,6 +303,30 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 SelectionOverlayController.shared.begin(purpose: .capture) { selection in
                     guard let image = selection?.image else { return }
                     CaptureDelivery.deliver(image)
+                }
+            }
+        }
+    }
+
+    /// Select a region and copy the text in it, without opening the editor.
+    @objc private func startTextCapture() {
+        Permissions.ensureScreenRecording {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                SelectionOverlayController.shared.begin(purpose: .capture) { selection in
+                    guard let image = selection?.image else { return }
+                    TextRecognition.copyText(from: image)
+                }
+            }
+        }
+    }
+
+    /// Select a region and float it on screen, without opening the editor.
+    @objc private func startPinCapture() {
+        Permissions.ensureScreenRecording {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                SelectionOverlayController.shared.begin(purpose: .capture) { selection in
+                    guard let image = selection?.image else { return }
+                    PinController.shared.pin(image)
                 }
             }
         }

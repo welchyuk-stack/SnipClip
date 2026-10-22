@@ -218,7 +218,7 @@ final class MarkupEditorWindow: NSWindow, NSDraggingSource {
         bar.addSubview(top)
 
         // ── Bottom group ──
-        let bottom = FlippedView(frame: NSRect(x: 0, y: 0, width: sidebarW, height: 88))
+        let bottom = FlippedView(frame: NSRect(x: 0, y: 0, width: sidebarW, height: 130))
         bottom.autoresizingMask = [.maxYMargin]
 
         let copy = SidebarIconButton(sfSymbol: "doc.on.doc", tip: "Copy (⌘C)")
@@ -231,6 +231,10 @@ final class MarkupEditorWindow: NSWindow, NSDraggingSource {
             self.beginDragOut(from: drag, event: event)
         }
         drag.onAction = { [weak self] in self?.refocusCanvas() }
+        let text = SidebarIconButton(sfSymbol: "text.viewfinder", tip: "Copy Text (⇧⌘C)")
+        text.onAction = { [weak self] in self?.copyRecognizedText(nil); self?.refocusCanvas() }
+        let pin = SidebarIconButton(sfSymbol: "pin", tip: "Pin on Screen (⌘P)")
+        pin.onAction = { [weak self] in self?.pinToScreen(nil) }
         let snip = SidebarIconButton(sfSymbol: "camera.viewfinder", tip: "New Snip")
         snip.onAction = { [weak self] in self?.newSnip() }
 
@@ -238,7 +242,9 @@ final class MarkupEditorWindow: NSWindow, NSDraggingSource {
         save.frame = NSRect(x: toolX + 42, y: 0, width: 36, height: 36)
         drag.frame = NSRect(x: toolX, y: 42, width: 36, height: 36)
         snip.frame = NSRect(x: toolX + 42, y: 42, width: 36, height: 36)
-        [copy, save, drag, snip].forEach { bottom.addSubview($0) }
+        text.frame = NSRect(x: toolX, y: 84, width: 36, height: 36)
+        pin.frame = NSRect(x: toolX + 42, y: 84, width: 36, height: 36)
+        [copy, save, drag, snip, text, pin].forEach { bottom.addSubview($0) }
         copyBtn = copy
         saveBtn = save
         bar.addSubview(bottom)
@@ -282,6 +288,21 @@ final class MarkupEditorWindow: NSWindow, NSDraggingSource {
         NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
         copyBtn.showConfirmation()
         ReviewPrompter.recordSuccessfulExport()
+    }
+
+    /// Recognises text in the marked-up image and copies it (on-device).
+    @objc func copyRecognizedText(_ sender: Any?) {
+        canvas.commitPendingText()
+        guard let img = renderFinal() else { return }
+        TextRecognition.copyText(from: img)
+    }
+
+    /// Floats the marked-up image above other windows and closes the editor.
+    @objc func pinToScreen(_ sender: Any?) {
+        canvas.commitPendingText()
+        guard let img = renderFinal() else { return }
+        PinController.shared.pin(img)
+        close()
     }
 
     @objc func undo(_ sender: Any?) {
