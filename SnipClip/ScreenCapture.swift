@@ -25,9 +25,16 @@ final class DisplayCapturer {
                 let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
                 guard let display = content.displays.first(where: { $0.displayID == displayID }) else { return nil }
                 let pid = getpid()
-                let excluded = excludingOwnWindows
+                var excluded = excludingOwnWindows
                     ? content.windows.filter { $0.owningApplication?.processID == pid }
                     : []
+                #if DEBUG
+                // Marketing recordings only: also hide another app's windows
+                // (e.g. the assistant driving the demo) from frozen captures.
+                if let hidden = ProcessInfo.processInfo.environment["SNIPCLIP_HIDE_BUNDLE"] {
+                    excluded += content.windows.filter { $0.owningApplication?.bundleIdentifier == hidden }
+                }
+                #endif
                 let filter = SCContentFilter(display: display, excludingWindows: excluded)
                 let config = SCStreamConfiguration()
                 config.captureResolution = .best
