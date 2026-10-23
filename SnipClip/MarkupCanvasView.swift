@@ -25,6 +25,8 @@ final class MarkupCanvasView: NSView {
     }
     /// Stroke width in on-screen points (sidebar offers 2 / 4 / 8).
     var lineWidthChoice: CGFloat = 4
+    /// Rounded corners while previewing an export background (image points).
+    var previewCornerRadius: CGFloat = 0 { didSet { needsDisplay = true } }
 
     // In-progress state
     private var activePoints: [NSPoint] = []
@@ -37,6 +39,8 @@ final class MarkupCanvasView: NSView {
     private var selectedItem: MarkupItem? { didSet { needsDisplay = true } }
     private var moveStart: NSPoint?
     private var moveTotal: NSPoint = .zero
+    private var resizeHandle: Int?
+    private var resizeStartState: MarkupItem.State?
 
     // Text editing
     private var textField: NSTextField?
@@ -125,12 +129,18 @@ final class MarkupCanvasView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         let full = NSRect(origin: .zero, size: imageSize)
+        if previewCornerRadius > 0 {
+            NSBezierPath(roundedRect: full, xRadius: previewCornerRadius, yRadius: previewCornerRadius).addClip()
+        }
         image.draw(in: full)
 
         let ctx = drawContext
+        let preview = isPressing ? previewItem() : nil
+        // Spotlight dimming goes under the annotations so they stay bright.
+        MarkupItem.drawSpotlights(items + [preview].compactMap { $0 }, imageSize: imageSize)
         for item in items where item !== editingItem { item.draw(ctx) }
 
-        if isPressing, let preview = previewItem() { preview.draw(ctx) }
+        if let preview { preview.draw(ctx) }
 
         if let sel = selectedItem, items.contains(where: { $0 === sel }) {
             let z = zoom
@@ -140,6 +150,17 @@ final class MarkupCanvasView: NSView {
             NSColor.white.setStroke(); path.stroke()
             path.setLineDash([4 / z, 3 / z], count: 2, phase: 4 / z)
             NSColor.controlAccentColor.setStroke(); path.stroke()
+
+            let size = 8 / z
+            for h in sel.handles {
+                let r = NSRect(x: h.x - size / 2, y: h.y - size / 2, width: size, height: size)
+                NSColor.white.setFill()
+                NSBezierPath(rect: r).fill()
+                let b = NSBezierPath(rect: r)
+                b.lineWidth = 1.5 / z
+                NSColor.controlAccentColor.setStroke()
+                b.stroke()
+            }
         }
 
         let crop: NSRect? = (isPressing && currentTool == .crop) ? liveCropRect() : cropRect
@@ -193,8 +214,50 @@ final class MarkupCanvasView: NSView {
         case .circle:    return makeItem(.circle(NSRect(from: dragStart, to: end)))
         case .highlight: return makeItem(.highlight(NSRect(from: dragStart, to: end)))
         case .blur:      return makeItem(.blur(NSRect(from: dragStart, to: end)))
+        case .redact:    return makeItem(.redact(NSRect(from: dragStart, to: end)))
+        case .spotlight: return makeItem(.spotlight(NSRect(from: dragStart, to: end)))
         default:         return nil
         }
+    }
+
+    // MARK: Editing the selection
+
+    var hasSelection: Bool { selectedItem != nil }
+
+    private func handleIndex(of item: MarkupItem, at p: NSPoint) -> Int? {
+        let r = 8 / zoom
+        return item.handles.firstIndex { abs($0.x - p.x) <= r && abs($0.y - p.y) <= r }
+    }
+
+    /// Applies a sidebar colour to the selected item. Returns false if nothing is selected.
+    @discardableResult
+    func recolorSelection(_ color: NSColor) -> Bool {
+        guard let item = selectedItem else { return false }
+        var s = item.state
+        s.color = color
+        setState(item, s, actionName: "Change Colour")
+        return true
+    }
+
+    /// Applies a sidebar line width (2 / 4 / 8) to the selected item.
+    @discardableResult
+    func setSelectionLineWidth(_ choice: CGFloat) -> Bool {
+        guard let item = selectedItem else { return false }
+        var s = item.state
+        switch item.shape {
+        case .text, .step: s.fontSize = (12 + choice * 2.5) / zoom
+        default:           s.lineWidth = choice / zoom
+        }
+        setState(item, s, actionName: "Change Line Width")
+        return true
+    }
+
+    func duplicateSelection() {
+        guard let item = selectedItem else { return }
+        let dup = item.copy()
+        dup.offset(by: NSPoint(x: 12 / zoom, y: 12 / zoom))
+        addItem(dup, actionName: "Duplicate")
+        selectedItem = dup
     }
 
     // MARK: Mouse
@@ -230,6 +293,11 @@ final class MarkupCanvasView: NSView {
             return
         case .select:
             window?.makeFirstResponder(self)
+            if let sel = selectedItem, let i = handleIndex(of: sel, at: pt) {
+                resizeHandle = i
+                resizeStartState = sel.state
+                return
+            }
             selectedItem = hitItem(at: pt)
             moveStart = selectedItem != nil ? pt : nil
             moveTotal = .zero
@@ -258,6 +326,11 @@ final class MarkupCanvasView: NSView {
         let pt = convert(event.locationInWindow, from: nil)
         shiftDown = event.modifierFlags.contains(.shift)
         if currentTool == .select {
+            if let i = resizeHandle, let item = selectedItem {
+                item.moveHandle(i, to: pt)
+                needsDisplay = true
+                return
+            }
             guard let item = selectedItem, let start = moveStart else { return }
             let d = NSPoint(x: pt.x - start.x, y: pt.y - start.y)
             item.offset(by: d)
@@ -274,6 +347,12 @@ final class MarkupCanvasView: NSView {
 
     override func mouseUp(with event: NSEvent) {
         if currentTool == .select {
+            if resizeHandle != nil, let item = selectedItem, let old = resizeStartState {
+                registerStateUndo(item, old: old, actionName: "Resize")
+                changed("Resize")
+            }
+            resizeHandle = nil
+            resizeStartState = nil
             if let item = selectedItem, moveStart != nil, moveTotal != .zero {
                 registerMoveUndo(item, delta: moveTotal)
                 delegate?.canvasDidChange()
@@ -508,6 +587,21 @@ final class MarkupCanvasView: NSView {
             target.delegate?.canvasDidChange()
         }
         window?.undoManager?.setActionName("Move")
+    }
+
+    private func setState(_ item: MarkupItem, _ new: MarkupItem.State, actionName: String) {
+        let old = item.state
+        item.state = new
+        registerStateUndo(item, old: old, actionName: actionName)
+        changed(actionName)
+    }
+
+    /// Registers an undo that restores `old` (and, via setState, a redo back).
+    private func registerStateUndo(_ item: MarkupItem, old: MarkupItem.State, actionName: String) {
+        window?.undoManager?.registerUndo(withTarget: self) { target in
+            target.setState(item, old, actionName: actionName)
+        }
+        window?.undoManager?.setActionName(actionName)
     }
 
     func setCrop(_ rect: NSRect?) {

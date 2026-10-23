@@ -53,6 +53,7 @@ func buildMainMenu() -> NSMenu {
         item("Paste", #selector(NSText.paste(_:)), "v"),
         item("Delete", #selector(NSText.delete(_:)), ""),
         item("Select All", #selector(NSText.selectAll(_:)), "a"),
+        item("Duplicate", #selector(MarkupEditorWindow.duplicate(_:)), "d"),
     ])
     return main
 }

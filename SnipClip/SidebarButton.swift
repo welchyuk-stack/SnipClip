@@ -116,6 +116,13 @@ class SidebarControl: NSView {
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
+    /// Clicks on the icon image view inside would otherwise go to the image
+    /// view, which leaves AppKit's mouse tracking stuck so the next press on
+    /// the canvas is dropped. The control handles every click itself.
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        super.hitTest(point) != nil ? self : nil
+    }
+
     // MARK: Keyboard / focus
 
     override var acceptsFirstResponder: Bool { NSApp.isFullKeyboardAccessEnabled }

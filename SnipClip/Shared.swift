@@ -44,6 +44,18 @@ enum AppSettings {
         set { UserDefaults.standard.set(newValue, forKey: saveWithoutAskingKey) }
     }
 
+    /// Editor background preset (ExportBackground.Fill raw value), "none" = off.
+    static var backgroundFill: String {
+        get { UserDefaults.standard.string(forKey: "snipclip_background_fill") ?? "none" }
+        set { UserDefaults.standard.set(newValue, forKey: "snipclip_background_fill") }
+    }
+
+    /// Padding around the screenshot when a background is on: "s", "m" or "l".
+    static var backgroundPadding: String {
+        get { UserDefaults.standard.string(forKey: "snipclip_background_padding") ?? "m" }
+        set { UserDefaults.standard.set(newValue, forKey: "snipclip_background_padding") }
+    }
+
     /// "png" or "jpeg" — the format last chosen in a save panel.
     static var saveFormat: String {
         get { UserDefaults.standard.string(forKey: saveFormatKey) ?? "png" }

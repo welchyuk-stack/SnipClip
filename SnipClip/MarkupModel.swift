@@ -1,7 +1,7 @@
 import AppKit
 
 enum MarkupTool: Int, CaseIterable {
-    case select, pen, arrow, rect, circle, highlight, text, step, blur, crop
+    case select, pen, arrow, rect, circle, highlight, text, step, blur, redact, spotlight, crop
 
     var symbol: String {
         switch self {
@@ -14,6 +14,8 @@ enum MarkupTool: Int, CaseIterable {
         case .text:      return "textformat"
         case .step:      return "1.circle"
         case .blur:      return "checkerboard.rectangle"
+        case .redact:    return "rectangle.fill"
+        case .spotlight: return "flashlight.on.fill"
         case .crop:      return "crop"
         }
     }
@@ -29,6 +31,8 @@ enum MarkupTool: Int, CaseIterable {
         case .text:      return "Text"
         case .step:      return "Numbered Step"
         case .blur:      return "Pixelate"
+        case .redact:    return "Redact"
+        case .spotlight: return "Spotlight"
         case .crop:      return "Crop"
         }
     }
@@ -44,6 +48,8 @@ enum MarkupTool: Int, CaseIterable {
         case .text:      return "t"
         case .step:      return "n"
         case .blur:      return "b"
+        case .redact:    return "x"
+        case .spotlight: return "l"
         case .crop:      return "c"
         }
     }
@@ -62,7 +68,7 @@ enum MarkupTool: Int, CaseIterable {
 
     var isRectBased: Bool {
         switch self {
-        case .rect, .circle, .highlight, .blur, .crop: return true
+        case .rect, .circle, .highlight, .blur, .redact, .spotlight, .crop: return true
         default: return false
         }
     }
@@ -84,12 +90,18 @@ final class MarkupItem {
         case text(NSPoint, String)
         case step(NSPoint, Int)
         case blur(NSRect)
+        /// Solid fill — unlike Pixelate it can't be partly reversed.
+        case redact(NSRect)
+        /// Dims everything outside the rect (all spotlights are drawn
+        /// together by `drawSpotlights` so overlaps don't stack).
+        case spotlight(NSRect)
     }
 
-    private(set) var shape: Shape
-    let color: NSColor
-    let lineWidth: CGFloat
-    let fontSize: CGFloat
+    /// Settable so the canvas can resize, recolour and undo edits.
+    var shape: Shape
+    var color: NSColor
+    var lineWidth: CGFloat
+    var fontSize: CGFloat
 
     init(_ shape: Shape, color: NSColor, lineWidth: CGFloat, fontSize: CGFloat) {
         self.shape = shape
@@ -100,6 +112,19 @@ final class MarkupItem {
 
     func copy() -> MarkupItem {
         MarkupItem(shape, color: color, lineWidth: lineWidth, fontSize: fontSize)
+    }
+
+    /// Everything editable, for undo snapshots.
+    struct State {
+        var shape: Shape
+        var color: NSColor
+        var lineWidth: CGFloat
+        var fontSize: CGFloat
+    }
+
+    var state: State {
+        get { State(shape: shape, color: color, lineWidth: lineWidth, fontSize: fontSize) }
+        set { shape = newValue.shape; color = newValue.color; lineWidth = newValue.lineWidth; fontSize = newValue.fontSize }
     }
 
     /// The single source of truth for text styling, shared by the live text
@@ -169,6 +194,13 @@ final class MarkupItem {
             let size = str.size()
             str.draw(at: NSPoint(x: center.x - size.width / 2, y: center.y - size.height / 2))
 
+        case .redact(let r):
+            color.setFill()
+            NSBezierPath(rect: r).fill()
+
+        case .spotlight:
+            break // see drawSpotlights
+
         case .blur(let r):
             NSGraphicsContext.saveGraphicsState()
             NSBezierPath(rect: r).addClip()
@@ -180,6 +212,29 @@ final class MarkupItem {
             }
             NSGraphicsContext.restoreGraphicsState()
         }
+    }
+
+    /// One dimming pass outside the union of every spotlight rect, so
+    /// overlapping spotlights don't re-dim each other.
+    static func drawSpotlights(_ items: [MarkupItem], imageSize: NSSize) {
+        let rects = items.compactMap { item -> NSRect? in
+            if case .spotlight(let r) = item.shape { return r }
+            return nil
+        }
+        guard !rects.isEmpty, let cg = NSGraphicsContext.current?.cgContext else { return }
+        cg.saveGState()
+        cg.beginTransparencyLayer(auxiliaryInfo: nil)
+        cg.setFillColor(NSColor.black.withAlphaComponent(0.55).cgColor)
+        cg.fill(CGRect(origin: .zero, size: imageSize))
+        cg.setBlendMode(.clear)
+        for r in rects where r.width >= 1 && r.height >= 1 {
+            // CGPath traps if the radius exceeds half the rect, e.g. at drag start.
+            let radius = min(6, r.width / 2, r.height / 2)
+            cg.addPath(CGPath(roundedRect: r, cornerWidth: radius, cornerHeight: radius, transform: nil))
+        }
+        cg.fillPath()
+        cg.endTransparencyLayer()
+        cg.restoreGState()
     }
 
     private func drawArrow(from: NSPoint, to: NSPoint) {
@@ -227,7 +282,7 @@ final class MarkupItem {
             return NSRect.enclosing([a, b]).insetBy(dx: -pad / 2, dy: -pad / 2)
         case .rect(let r), .circle(let r):
             return r.insetBy(dx: -lineWidth / 2, dy: -lineWidth / 2)
-        case .highlight(let r), .blur(let r):
+        case .highlight(let r), .blur(let r), .redact(let r), .spotlight(let r):
             return r
         case .text(let pt, let str):
             let size = NSAttributedString(string: str, attributes: textAttributes).size()
@@ -256,7 +311,12 @@ final class MarkupItem {
             let inset = r.insetBy(dx: tolerance + lineWidth, dy: tolerance + lineWidth)
             let outer = r.insetBy(dx: -tolerance - lineWidth, dy: -tolerance - lineWidth)
             return outer.contains(p) && (inset.width < 24 || inset.height < 24 || !inset.contains(p))
-        case .highlight, .blur, .text, .step:
+        case .spotlight(let r):
+            // Only the edge, so clicks inside still reach what's spotlit.
+            let outer = r.insetBy(dx: -tolerance - 2, dy: -tolerance - 2)
+            let inner = r.insetBy(dx: tolerance + 2, dy: tolerance + 2)
+            return outer.contains(p) && (inner.width < 24 || inner.height < 24 || !inner.contains(p))
+        case .highlight, .blur, .redact, .text, .step:
             return bounds.insetBy(dx: -tolerance, dy: -tolerance).contains(p)
         }
     }
@@ -273,6 +333,57 @@ final class MarkupItem {
         case .text(let p, let s):  shape = .text(o(p), s)
         case .step(let p, let n):  shape = .step(o(p), n)
         case .blur(let r):         shape = .blur(o(r))
+        case .redact(let r):       shape = .redact(o(r))
+        case .spotlight(let r):    shape = .spotlight(o(r))
+        }
+    }
+
+    // MARK: Resize handles
+
+    /// The rect behind box-like shapes, if any.
+    private var boxRect: NSRect? {
+        switch shape {
+        case .rect(let r), .circle(let r), .highlight(let r), .blur(let r), .redact(let r), .spotlight(let r):
+            return r
+        default:
+            return nil
+        }
+    }
+
+    private func withBox(_ r: NSRect) -> Shape? {
+        switch shape {
+        case .rect:      return .rect(r)
+        case .circle:    return .circle(r)
+        case .highlight: return .highlight(r)
+        case .blur:      return .blur(r)
+        case .redact:    return .redact(r)
+        case .spotlight: return .spotlight(r)
+        default:         return nil
+        }
+    }
+
+    /// Draggable points: four corners for boxes, both ends for arrows.
+    var handles: [NSPoint] {
+        if let r = boxRect {
+            return [NSPoint(x: r.minX, y: r.minY), NSPoint(x: r.maxX, y: r.minY),
+                    NSPoint(x: r.maxX, y: r.maxY), NSPoint(x: r.minX, y: r.maxY)]
+        }
+        if case .arrow(let a, let b) = shape { return [a, b] }
+        return []
+    }
+
+    /// Moves handle `index` to `p`, keeping the opposite corner (or the other
+    /// arrow end) fixed.
+    func moveHandle(_ index: Int, to p: NSPoint) {
+        if boxRect != nil {
+            let corners = handles
+            let opposite = corners[(index + 2) % 4]
+            var nr = NSRect(from: opposite, to: p)
+            nr.size.width = max(nr.width, 2)
+            nr.size.height = max(nr.height, 2)
+            if let s = withBox(nr) { shape = s }
+        } else if case .arrow(let a, let b) = shape {
+            shape = index == 0 ? .arrow(p, b) : .arrow(a, p)
         }
     }
 

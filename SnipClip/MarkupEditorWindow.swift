@@ -49,10 +49,12 @@ final class MarkupEditorWindow: NSWindow, NSDraggingSource {
     private var widthButtons: [LineWidthButton] = []
     private var copyBtn: SidebarIconButton!
     private var saveBtn: SidebarIconButton!
+    private var bgBtn: SidebarIconButton!
+    private var container: CanvasContainerView!
 
     private let sidebarW: CGFloat = 92
     private let minCanvasW: CGFloat = 300
-    private let minContentH: CGFloat = 540
+    private let minContentH: CGFloat = 650
 
     init(image: NSImage, entry: CaptureHistory.Entry?) {
         self.sourceImage = image
@@ -124,6 +126,8 @@ final class MarkupEditorWindow: NSWindow, NSDraggingSource {
         let container = CanvasContainerView(
             frame: NSRect(x: sidebarW + 1, y: 0, width: totalW - sidebarW - 1, height: totalH), canvas: cv)
         container.autoresizingMask = [.width, .height]
+        container.background = ExportBackground.current
+        self.container = container
 
         [sidebar, divider, container].forEach { root.addSubview($0) }
         contentView = root
@@ -141,7 +145,7 @@ final class MarkupEditorWindow: NSWindow, NSDraggingSource {
         bar.state = .active
 
         // ── Top group (flipped, laid out top-down) ──
-        let topH: CGFloat = 430
+        let topH: CGFloat = 472
         let top = FlippedView(frame: NSRect(x: 0, y: height - topH, width: sidebarW, height: topH))
         top.autoresizingMask = [.minYMargin]
         var yCur: CGFloat = 10
@@ -183,6 +187,7 @@ final class MarkupEditorWindow: NSWindow, NSDraggingSource {
             sw.onPick = { [weak self, weak sw] color in
                 guard let self else { return }
                 self.canvas.currentColor = color
+                self.canvas.recolorSelection(color)
                 self.selectSwatch(sw)
                 self.refocusCanvas()
             }
@@ -198,6 +203,7 @@ final class MarkupEditorWindow: NSWindow, NSDraggingSource {
             b.frame = NSRect(x: swX + CGFloat(i) * 30, y: yCur, width: 24, height: 24)
             b.onAction = { [weak self] in
                 self?.selectWidth(w)
+                self?.canvas.setSelectionLineWidth(w)
                 self?.refocusCanvas()
             }
             top.addSubview(b)
@@ -218,7 +224,7 @@ final class MarkupEditorWindow: NSWindow, NSDraggingSource {
         bar.addSubview(top)
 
         // ── Bottom group ──
-        let bottom = FlippedView(frame: NSRect(x: 0, y: 0, width: sidebarW, height: 130))
+        let bottom = FlippedView(frame: NSRect(x: 0, y: 0, width: sidebarW, height: 172))
         bottom.autoresizingMask = [.maxYMargin]
 
         let copy = SidebarIconButton(sfSymbol: "doc.on.doc", tip: "Copy (⌘C)")
@@ -235,6 +241,13 @@ final class MarkupEditorWindow: NSWindow, NSDraggingSource {
         text.onAction = { [weak self] in self?.copyRecognizedText(nil); self?.refocusCanvas() }
         let pin = SidebarIconButton(sfSymbol: "pin", tip: "Pin on Screen (⌘P)")
         pin.onAction = { [weak self] in self?.pinToScreen(nil) }
+        let bg = SidebarIconButton(sfSymbol: "photo.artframe", tip: "Background & Padding")
+        bg.onAction = { [weak self, weak bg] in
+            guard let self, let bg else { return }
+            self.showBackgroundMenu(from: bg)
+        }
+        let dup = SidebarIconButton(sfSymbol: "plus.square.on.square", tip: "Duplicate Selection (⌘D)")
+        dup.onAction = { [weak self] in self?.duplicate(nil); self?.refocusCanvas() }
         let snip = SidebarIconButton(sfSymbol: "camera.viewfinder", tip: "New Snip")
         snip.onAction = { [weak self] in self?.newSnip() }
 
@@ -244,7 +257,11 @@ final class MarkupEditorWindow: NSWindow, NSDraggingSource {
         snip.frame = NSRect(x: toolX + 42, y: 42, width: 36, height: 36)
         text.frame = NSRect(x: toolX, y: 84, width: 36, height: 36)
         pin.frame = NSRect(x: toolX + 42, y: 84, width: 36, height: 36)
-        [copy, save, drag, snip, text, pin].forEach { bottom.addSubview($0) }
+        bg.frame = NSRect(x: toolX, y: 126, width: 36, height: 36)
+        dup.frame = NSRect(x: toolX + 42, y: 126, width: 36, height: 36)
+        bg.isSelected = ExportBackground.current.isOn
+        bgBtn = bg
+        [copy, save, drag, snip, text, pin, bg, dup].forEach { bottom.addSubview($0) }
         copyBtn = copy
         saveBtn = save
         bar.addSubview(bottom)
@@ -303,6 +320,67 @@ final class MarkupEditorWindow: NSWindow, NSDraggingSource {
         guard let img = renderFinal() else { return }
         PinController.shared.pin(img)
         close()
+    }
+
+    @objc func duplicate(_ sender: Any?) {
+        canvas.duplicateSelection()
+    }
+
+    // MARK: Background
+
+    private func showBackgroundMenu(from button: NSView) {
+        let menu = NSMenu()
+        let style = ExportBackground.current
+        for fill in ExportBackground.Fill.allCases {
+            let item = NSMenuItem(title: fill.title, action: #selector(pickBackground(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = fill.rawValue
+            item.state = fill == style.fill ? .on : .off
+            if fill.colors.count > 0 { item.image = swatchImage(for: fill) }
+            menu.addItem(item)
+            if fill == .none { menu.addItem(.separator()) }
+        }
+        menu.addItem(.separator())
+        let header = NSMenuItem(title: "Padding", action: nil, keyEquivalent: "")
+        header.isEnabled = false
+        menu.addItem(header)
+        for pad in ExportBackground.Padding.allCases {
+            let item = NSMenuItem(title: pad.title, action: #selector(pickPadding(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = pad.rawValue
+            item.state = pad == style.padding ? .on : .off
+            item.isEnabled = style.isOn
+            menu.addItem(item)
+        }
+        menu.autoenablesItems = false
+        menu.popUp(positioning: nil, at: NSPoint(x: button.bounds.maxX + 4, y: button.bounds.maxY), in: button)
+        refocusCanvas()
+    }
+
+    private func swatchImage(for fill: ExportBackground.Fill) -> NSImage {
+        NSImage(size: NSSize(width: 16, height: 16), flipped: false) { r in
+            NSBezierPath(roundedRect: r.insetBy(dx: 1, dy: 1), xRadius: 4, yRadius: 4).addClip()
+            ExportBackground(fill: fill, padding: .m).drawFill(in: r)
+            return true
+        }
+    }
+
+    @objc private func pickBackground(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String else { return }
+        AppSettings.backgroundFill = raw
+        applyBackground()
+    }
+
+    @objc private func pickPadding(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String else { return }
+        AppSettings.backgroundPadding = raw
+        applyBackground()
+    }
+
+    private func applyBackground() {
+        let style = ExportBackground.current
+        bgBtn.isSelected = style.isOn
+        container.background = style
     }
 
     @objc func undo(_ sender: Any?) {
@@ -453,6 +531,13 @@ final class MarkupEditorWindow: NSWindow, NSDraggingSource {
     /// Renders through an offscreen flipped view using the exact same draw
     /// calls as the on-screen canvas (no hand-rolled CGContext flips).
     private func renderFinalRep() -> NSBitmapImageRep? {
+        guard let rep = renderAnnotatedRep() else { return nil }
+        let style = ExportBackground.current
+        return style.isOn ? (style.compose(rep) ?? rep) : rep
+    }
+
+    /// The (cropped) capture with annotations, before any background.
+    private func renderAnnotatedRep() -> NSBitmapImageRep? {
         let imgSize = canvas.imageSize
         let full = NSRect(origin: .zero, size: imgSize)
         var crop = (canvas.cropRect ?? full).intersection(full)
@@ -527,6 +612,9 @@ private final class FlippedView: NSView {
 /// Aspect-fits and centres the canvas (never scaling above 1×) on every resize.
 private final class CanvasContainerView: NSView {
     private let canvas: MarkupCanvasView
+    var background: ExportBackground? {
+        didSet { fitCanvas(); needsDisplay = true }
+    }
 
     init(frame: NSRect, canvas: MarkupCanvasView) {
         self.canvas = canvas
@@ -544,6 +632,13 @@ private final class CanvasContainerView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         NSColor.underPageBackgroundColor.setFill()
         bounds.intersection(dirtyRect).fill()
+
+        // Live preview of the export background around the canvas.
+        guard let bg = background, bg.isOn else { return }
+        let s = canvas.zoom
+        let p = bg.pad(for: canvas.imageSize) * s
+        bg.drawFill(in: canvas.frame.insetBy(dx: -p, dy: -p))
+        bg.drawShadow(for: canvas.frame, scale: s)
     }
 
     override func resizeSubviews(withOldSize oldSize: NSSize) {
@@ -553,10 +648,15 @@ private final class CanvasContainerView: NSView {
     func fitCanvas() {
         let img = canvas.imageSize
         guard img.width > 0, img.height > 0, bounds.width > 0, bounds.height > 0 else { return }
-        let s = min(1, min(bounds.width / img.width, bounds.height / img.height))
+        let bg = background?.isOn == true ? background : nil
+        let pad = bg?.pad(for: img) ?? 0
+        let s = min(1, min(bounds.width / (img.width + 2 * pad), bounds.height / (img.height + 2 * pad)))
         let w = img.width * s, h = img.height * s
         let f = NSRect(x: (bounds.width - w) / 2, y: (bounds.height - h) / 2, width: w, height: h).integral
         canvas.frame = f
+        // In image points; drawn as a clip by the canvas (layer-backing the
+        // canvas for a corner radius breaks its mouse handling).
+        canvas.previewCornerRadius = bg?.cornerRadius(for: img) ?? 0
     }
 }
 
@@ -579,6 +679,126 @@ private final class RenderCanvasView: NSView {
         t.translateX(by: -origin.x, yBy: -origin.y)
         t.concat()
         backgroundImage?.draw(in: NSRect(origin: .zero, size: imageSize))
+        MarkupItem.drawSpotlights(items, imageSize: imageSize)
         for item in items { item.draw(drawContext) }
+    }
+}
+
+// MARK: - Background
+
+/// Puts the screenshot on a gradient or solid colour with padding, rounded
+/// corners and a shadow. Applied at export time (and previewed in the editor).
+struct ExportBackground {
+    enum Fill: String, CaseIterable {
+        case none, ocean, sunset, midnight, mint, white, grey, dark
+
+        var title: String {
+            switch self {
+            case .none:     return "None"
+            case .ocean:    return "Ocean"
+            case .sunset:   return "Sunset"
+            case .midnight: return "Midnight"
+            case .mint:     return "Mint"
+            case .white:    return "White"
+            case .grey:     return "Light Grey"
+            case .dark:     return "Dark"
+            }
+        }
+
+        var colors: [NSColor] {
+            func c(_ hex: UInt32) -> NSColor {
+                NSColor(srgbRed: CGFloat((hex >> 16) & 0xFF) / 255, green: CGFloat((hex >> 8) & 0xFF) / 255,
+                        blue: CGFloat(hex & 0xFF) / 255, alpha: 1)
+            }
+            switch self {
+            case .none:     return []
+            case .ocean:    return [c(0x4A90FF), c(0x7B5CFF)]
+            case .sunset:   return [c(0xFF7E5F), c(0xFEB47B)]
+            case .midnight: return [c(0x232526), c(0x414345)]
+            case .mint:     return [c(0x43E97B), c(0x38F9D7)]
+            case .white:    return [c(0xF5F5F7)]
+            case .grey:     return [c(0xD1D1D6)]
+            case .dark:     return [c(0x1C1C1E)]
+            }
+        }
+    }
+
+    enum Padding: String, CaseIterable {
+        case s, m, l
+        var title: String { ["s": "Small", "m": "Medium", "l": "Large"][rawValue]! }
+        var factor: CGFloat { ["s": 0.05, "m": 0.08, "l": 0.12][rawValue]! }
+    }
+
+    var fill: Fill
+    var padding: Padding
+
+    static var current: ExportBackground {
+        ExportBackground(fill: Fill(rawValue: AppSettings.backgroundFill) ?? .none,
+                        padding: Padding(rawValue: AppSettings.backgroundPadding) ?? .m)
+    }
+
+    var isOn: Bool { fill != .none }
+
+    /// Padding in points for content of the given size.
+    func pad(for size: NSSize) -> CGFloat {
+        max(16, max(size.width, size.height) * padding.factor).rounded()
+    }
+
+    func cornerRadius(for size: NSSize) -> CGFloat {
+        min(14, min(size.width, size.height) * 0.06)
+    }
+
+    /// Fills `rect` with the gradient or solid colour.
+    func drawFill(in rect: NSRect) {
+        let cols = fill.colors
+        if cols.count > 1, let g = NSGradient(colors: cols) {
+            g.draw(in: rect, angle: -35)
+        } else if let c = cols.first {
+            c.setFill()
+            rect.fill()
+        }
+    }
+
+    /// Draws the shadow-casting rounded card for `content` (call before the image).
+    func drawShadow(for content: NSRect, scale: CGFloat) {
+        NSGraphicsContext.saveGraphicsState()
+        let shadow = NSShadow()
+        shadow.shadowColor = NSColor.black.withAlphaComponent(fill == .dark || fill == .midnight ? 0.6 : 0.35)
+        shadow.shadowBlurRadius = 24 * scale
+        shadow.shadowOffset = NSSize(width: 0, height: -8 * scale)
+        shadow.set()
+        let r = cornerRadius(for: content.size)
+        NSColor.white.setFill()
+        NSBezierPath(roundedRect: content, xRadius: r, yRadius: r).fill()
+        NSGraphicsContext.restoreGraphicsState()
+    }
+
+    /// Wraps an exported bitmap (sized in points via `rep.size`) in the background.
+    func compose(_ rep: NSBitmapImageRep) -> NSBitmapImageRep? {
+        let pt = rep.size
+        guard pt.width > 0, pt.height > 0 else { return nil }
+        let scale = CGFloat(rep.pixelsWide) / pt.width
+        let p = pad(for: pt)
+        let outPt = NSSize(width: pt.width + 2 * p, height: pt.height + 2 * p)
+        let pw = Int((outPt.width * scale).rounded()), ph = Int((outPt.height * scale).rounded())
+        guard let out = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: pw, pixelsHigh: ph,
+                                         bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
+                                         isPlanar: false, colorSpaceName: .deviceRGB,
+                                         bytesPerRow: 0, bitsPerPixel: 0),
+              let ctx = NSGraphicsContext(bitmapImageRep: out) else { return nil }
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = ctx
+        ctx.imageInterpolation = .high
+        let full = NSRect(x: 0, y: 0, width: CGFloat(pw), height: CGFloat(ph))
+        drawFill(in: full)
+        let content = NSRect(x: p * scale, y: p * scale, width: pt.width * scale, height: pt.height * scale)
+        drawShadow(for: content, scale: scale)
+        let r = cornerRadius(for: pt) * scale
+        NSBezierPath(roundedRect: content, xRadius: r, yRadius: r).addClip()
+        rep.draw(in: content, from: .zero, operation: .sourceOver, fraction: 1,
+                 respectFlipped: false, hints: [.interpolation: NSImageInterpolation.high.rawValue])
+        NSGraphicsContext.restoreGraphicsState()
+        out.size = outPt
+        return out
     }
 }
