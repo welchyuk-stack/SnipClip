@@ -12,6 +12,13 @@ class SidebarControl: NSView {
         didSet { refreshAppearance(animated: true); setAccessibilityValue(isSelected ? "selected" : nil) }
     }
     var onAction: (() -> Void)?
+    /// Disabled controls dim and ignore clicks.
+    var isEnabled = true {
+        didSet {
+            alphaValue = isEnabled ? 1 : 0.35
+            setAccessibilityEnabled(isEnabled)
+        }
+    }
     /// Fired once when the mouse moves more than 3pt while pressed; the
     /// click action is then suppressed.
     var onDragStart: ((NSEvent) -> Void)?
@@ -89,6 +96,7 @@ class SidebarControl: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        guard isEnabled else { return }
         isPressed = true
         didStartDrag = false
         mouseDownPoint = convert(event.locationInWindow, from: nil)
@@ -135,13 +143,14 @@ class SidebarControl: NSView {
 
     override func keyDown(with event: NSEvent) {
         if event.keyCode == 49 || event.keyCode == 36 || event.keyCode == 76 {  // Space, Return, Enter
-            onAction?()
+            if isEnabled { onAction?() }
         } else {
             super.keyDown(with: event)
         }
     }
 
     override func accessibilityPerformPress() -> Bool {
+        guard isEnabled else { return false }
         onAction?()
         return true
     }

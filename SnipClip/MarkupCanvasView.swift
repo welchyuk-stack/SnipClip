@@ -10,6 +10,7 @@ protocol MarkupCanvasDelegate: AnyObject {
     func canvasDidCopyText(_ text: String)
     /// Pan the view by a screen-space delta (Pan tool or Space-drag).
     func canvasPan(dx: CGFloat, dy: CGFloat)
+    func canvasSelectionDidChange()
 }
 
 /// The annotation surface. Its `bounds` is always the image size in points
@@ -53,7 +54,9 @@ final class MarkupCanvasView: NSView {
     private var shiftDown = false
 
     // Selection / move
-    private var selectedItem: MarkupItem? { didSet { needsDisplay = true } }
+    private var selectedItem: MarkupItem? {
+        didSet { needsDisplay = true; if (oldValue == nil) != (selectedItem == nil) { delegate?.canvasSelectionDidChange() } }
+    }
     private var moveStart: NSPoint?
     private var moveTotal: NSPoint = .zero
     private var resizeHandle: Int?

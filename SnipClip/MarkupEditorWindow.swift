@@ -50,6 +50,7 @@ final class MarkupEditorWindow: NSWindow, NSDraggingSource {
     private var copyBtn: SidebarIconButton!
     private var saveBtn: SidebarIconButton!
     private var bgBtn: SidebarIconButton!
+    private var dupBtn: SidebarIconButton!
     private var container: CanvasContainerView!
     private var preview: ClipboardPreviewView!
     private var zoomBar: ZoomBarView!
@@ -258,12 +259,16 @@ final class MarkupEditorWindow: NSWindow, NSDraggingSource {
         copy.onAction = { [weak self] in self?.copy(nil); self?.refocusCanvas() }
         let save = SidebarIconButton(sfSymbol: "square.and.arrow.down", tip: "Save… (⌘S)")
         save.onAction = { [weak self] in self?.saveDocument(nil) }
-        let drag = SidebarIconButton(sfSymbol: "hand.draw", tip: "Drag into another app")
+        let drag = SidebarIconButton(sfSymbol: "hand.draw", tip: "Drag me into another app (Mail, Slack, Finder…) to drop the image in")
         drag.onDragStart = { [weak self, weak drag] event in
             guard let self, let drag else { return }
             self.beginDragOut(from: drag, event: event)
         }
-        drag.onAction = { [weak self] in self?.refocusCanvas() }
+        // A plain click does nothing useful, so explain how to use it.
+        drag.onAction = { [weak self] in
+            Toast.show("Drag this button into another app to drop the image in")
+            self?.refocusCanvas()
+        }
         let pin = SidebarIconButton(sfSymbol: "pin", tip: "Pin on Screen (⌘P)")
         pin.onAction = { [weak self] in self?.pinToScreen(nil) }
         let bg = SidebarIconButton(sfSymbol: "photo.artframe", tip: "Background & Padding")
@@ -292,6 +297,8 @@ final class MarkupEditorWindow: NSWindow, NSDraggingSource {
         bg.frame = NSRect(x: toolX + 42, y: y0 + 84, width: 36, height: 36)
         dup.frame = NSRect(x: toolX, y: y0 + 126, width: 36, height: 36)
         bg.isSelected = ExportBackground.current.isOn
+        dup.isEnabled = false
+        dupBtn = dup
         bgBtn = bg
         [copy, save, drag, snip, pin, bg, dup].forEach { bottom.addSubview($0) }
         copyBtn = copy
@@ -619,6 +626,8 @@ extension MarkupEditorWindow {
         case #selector(redo(_:)):
             menuItem.title = undoManager?.redoMenuItemTitle ?? "Redo"
             return undoManager?.canRedo == true
+        case #selector(duplicate(_:)):
+            return canvas.hasSelection
         default:
             return super.validateMenuItem(menuItem)
         }
@@ -644,6 +653,10 @@ extension MarkupEditorWindow: MarkupCanvasDelegate {
         }
         previewWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: work)
+    }
+
+    func canvasSelectionDidChange() {
+        dupBtn?.isEnabled = canvas.hasSelection
     }
 
     func canvasPan(dx: CGFloat, dy: CGFloat) {
