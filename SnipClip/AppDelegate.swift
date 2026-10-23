@@ -269,11 +269,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func openPrivacyPolicy() {
-        NSWorkspace.shared.open(URL(string: "https://macbound.com/snipclip/privacy/")!)
+        NSWorkspace.shared.open(URL(string: "https://blumanta.co.uk/snipclip/privacy/")!)
     }
 
     @objc private func openSupport() {
-        NSWorkspace.shared.open(URL(string: "https://macbound.com/snipclip/support/")!)
+        NSWorkspace.shared.open(URL(string: "https://blumanta.co.uk/snipclip/support/")!)
     }
 
     // MARK: - Capture
