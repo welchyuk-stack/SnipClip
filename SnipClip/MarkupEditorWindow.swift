@@ -58,7 +58,7 @@ final class MarkupEditorWindow: NSWindow, NSDraggingSource {
     private var previewWork: DispatchWorkItem?
 
     private let sidebarW: CGFloat = 92
-    private let minCanvasW: CGFloat = 300
+    private let minCanvasW: CGFloat = 520
     private let minContentH: CGFloat = 720
 
     init(image: NSImage, entry: CaptureHistory.Entry?) {
@@ -189,6 +189,7 @@ final class MarkupEditorWindow: NSWindow, NSDraggingSource {
         let toolX = (sidebarW - (36 * 2 + 6)) / 2
         for (i, tool) in MarkupTool.allCases.enumerated() {
             let btn = SidebarIconButton(sfSymbol: tool.symbol, tip: tool.tooltip, isTool: true)
+            btn.setAccessibilityLabel(tool.name)
             btn.frame = NSRect(x: toolX + CGFloat(i % 2) * 42, y: yCur + CGFloat(i / 2) * 42, width: 36, height: 36)
             btn.onAction = { [weak self] in
                 self?.selectTool(tool)
@@ -259,7 +260,7 @@ final class MarkupEditorWindow: NSWindow, NSDraggingSource {
         copy.onAction = { [weak self] in self?.copy(nil); self?.refocusCanvas() }
         let save = SidebarIconButton(sfSymbol: "square.and.arrow.down", tip: "Save… (⌘S)")
         save.onAction = { [weak self] in self?.saveDocument(nil) }
-        let drag = SidebarIconButton(sfSymbol: "hand.draw", tip: "Drag me into another app (Mail, Slack, Finder…) to drop the image in")
+        let drag = SidebarIconButton(sfSymbol: "square.and.arrow.up.on.square", tip: "Drag me into another app (Mail, Slack, Finder…) to drop the image in")
         drag.onDragStart = { [weak self, weak drag] event in
             guard let self, let drag else { return }
             self.beginDragOut(from: drag, event: event)
@@ -343,7 +344,7 @@ final class MarkupEditorWindow: NSWindow, NSDraggingSource {
         NSPasteboard.general.writeObjects([img])
         NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
         copyBtn.showConfirmation()
-        preview.show(title: "Copied to clipboard", image: img)
+        preview.show(title: canvas.cropRect != nil ? "Copied selection" : "Copied to clipboard", image: img)
         ReviewPrompter.recordSuccessfulExport()
     }
 
@@ -664,7 +665,8 @@ extension MarkupEditorWindow: MarkupCanvasDelegate {
     }
 
     func canvasDidCopyText(_ text: String) {
-        preview.show(title: "Copied text", text: text)
+        let lines = text.split(separator: "\n").count
+        preview.show(title: lines == 1 ? "Copied text" : "Copied \(lines) lines of text", text: text)
     }
 
     func canvasDidChangeTool(_ tool: MarkupTool) {

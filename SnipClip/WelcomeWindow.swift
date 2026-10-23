@@ -64,6 +64,7 @@ final class WelcomeWindowController: NSObject, NSWindowDelegate {
         let features = NSStackView(views: [
             featureRow(symbol: "viewfinder", text: "Capture a region — \(hk.displayString(for: .capture))"),
             featureRow(symbol: "record.circle", text: "Record your screen — \(hk.displayString(for: .toggleRecording))"),
+            featureRow(symbol: "pencil.tip.crop.circle", text: "Mark up with arrows, text, Redact, Spotlight and Copy Text — hover a tool to see its key"),
             featureRow(symbol: "menubar.rectangle", text: "Everything else lives in the menu bar icon"),
             featureRow(symbol: "keyboard", text: "Change shortcuts any time in Settings"),
         ])

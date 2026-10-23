@@ -60,6 +60,9 @@ final class MarkupCanvasView: NSView {
     private var moveStart: NSPoint?
     private var moveTotal: NSPoint = .zero
     private var resizeHandle: Int?
+    private var resizeMoved = false
+    /// Open undo group from a cut, closed when the drag that moves it ends.
+    private var liftGroupOpen = false
     private var resizeStartState: MarkupItem.State?
 
     // Text editing
@@ -95,12 +98,15 @@ final class MarkupCanvasView: NSView {
     var baseZoom: CGFloat = 1
 
     // Crop editing
-    private enum CropDrag { case move(NSPoint, NSRect), resize(Int, NSRect) }
+    private enum CropDrag { case resize(Int, NSRect) }
     private var cropDrag: CropDrag?
 
     // Panning
     private var spaceDown = false
-    private var isPanning: Bool { currentTool == .pan || spaceDown }
+    private var isPanning: Bool {
+        if spaceDown, !CGEventSource.keyState(.combinedSessionState, key: 49) { spaceDown = false }
+        return currentTool == .pan || spaceDown
+    }
 
     var isEditingText: Bool { textField != nil }
 
@@ -290,6 +296,32 @@ final class MarkupCanvasView: NSView {
         return NSImage(cgImage: part, size: rect.size)
     }
 
+    /// The area as currently shown (capture + annotations + earlier cuts), at
+    /// the capture's pixel density, so lifting it keeps everything drawn there.
+    private func renderedRegion(_ rect: NSRect) -> NSImage? {
+        let s = (sourceBitmap.map { CGFloat($0.pixelsWide) } ?? imageSize.width) / imageSize.width
+        let pw = max(1, Int((rect.width * s).rounded())), ph = max(1, Int((rect.height * s).rounded()))
+        guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: pw, pixelsHigh: ph,
+                                         bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                                         colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0),
+              let ctx = NSGraphicsContext(bitmapImageRep: rep) else { return nil }
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(cgContext: ctx.cgContext, flipped: true)
+        let cg = ctx.cgContext
+        cg.translateBy(x: 0, y: CGFloat(ph))
+        cg.scaleBy(x: s, y: -s)
+        cg.translateBy(x: -rect.minX, y: -rect.minY)
+        image.draw(in: NSRect(origin: .zero, size: imageSize), from: .zero, operation: .copy, fraction: 1,
+                   respectFlipped: true, hints: nil)
+        let dc = drawContext
+        MarkupItem.drawSpotlights(items, imageSize: imageSize)
+        for item in items { item.draw(dc) }
+        NSGraphicsContext.restoreGraphicsState()
+        let out = NSImage(size: rect.size)
+        out.addRepresentation(rep)
+        return out
+    }
+
     /// Average colour just outside `rect`, used to fill the hole left behind.
     private func surroundingColor(_ rect: NSRect) -> NSColor {
         guard let rep = sourceBitmap else { return .white }
@@ -328,15 +360,16 @@ final class MarkupCanvasView: NSView {
 
     /// Dragging inside the selection: cut the pixels out into a movable piece,
     /// fill the hole, and hand the drag to the normal move logic.
-    private func liftSelection(_ rect: NSRect, at pt: NSPoint) {
-        guard let pixels = imageRegion(rect) else { return }
+    private func liftSelection(_ selection: NSRect, at pt: NSPoint) {
+        let rect = selection.intersection(NSRect(origin: .zero, size: imageSize)).integral
+        guard rect.width >= 1, rect.height >= 1, let pixels = renderedRegion(rect) else { return }
         let piece = MarkupItem(.patch(pixels, rect), color: .clear, lineWidth: 0, fontSize: 0)
         window?.undoManager?.beginUndoGrouping()
         addItem(eraseItem(rect), actionName: "Cut Area")
         addItem(piece, actionName: "Cut Area")
         setCrop(nil)
-        window?.undoManager?.endUndoGrouping()
-        window?.undoManager?.setActionName("Cut Area")
+        // Left open so the move from this same drag undoes with the cut.
+        liftGroupOpen = true
         // Switch to Select with the piece picked up, so this same drag moves it.
         currentTool = .select
         delegate?.canvasDidChangeTool(.select)
@@ -354,7 +387,7 @@ final class MarkupCanvasView: NSView {
         let s = CGFloat(cg.width) / imageSize.width
         let px = CGRect(x: rect.minX * s, y: rect.minY * s, width: rect.width * s, height: rect.height * s).integral
         guard let part = cg.cropping(to: px) else { return }
-        TextRecognition.copyText(from: NSImage(cgImage: part, size: rect.size)) { [weak self] text in
+        TextRecognition.copyText(from: NSImage(cgImage: part, size: rect.size), showToast: false) { [weak self] text in
             if let text { self?.delegate?.canvasDidCopyText(text) }
         }
     }
@@ -454,6 +487,7 @@ final class MarkupCanvasView: NSView {
             window?.makeFirstResponder(self)
             if let sel = selectedItem, let i = handleIndex(of: sel, at: pt) {
                 resizeHandle = i
+                resizeMoved = false
                 resizeStartState = sel.state
                 return
             }
@@ -491,11 +525,6 @@ final class MarkupCanvasView: NSView {
         if let drag = cropDrag {
             let full = NSRect(origin: .zero, size: imageSize)
             switch drag {
-            case .move(let start, let orig):
-                var r = orig.offsetBy(dx: pt.x - start.x, dy: pt.y - start.y)
-                r.origin.x = min(max(r.minX, 0), full.width - r.width)
-                r.origin.y = min(max(r.minY, 0), full.height - r.height)
-                cropRect = r
             case .resize(let i, let orig):
                 let opposite = cropCorners(orig)[(i + 2) % 4]
                 let p = NSPoint(x: min(max(pt.x, 0), full.width), y: min(max(pt.y, 0), full.height))
@@ -507,6 +536,7 @@ final class MarkupCanvasView: NSView {
         }
         if currentTool == .select {
             if let i = resizeHandle, let item = selectedItem {
+                resizeMoved = true
                 item.moveHandle(i, to: pt)
                 needsDisplay = true
                 return
@@ -533,14 +563,14 @@ final class MarkupCanvasView: NSView {
         if let drag = cropDrag {
             cropDrag = nil
             let orig: NSRect
-            switch drag { case .move(_, let o), .resize(_, let o): orig = o }
+            switch drag { case .resize(_, let o): orig = o }
             let new = cropRect
             cropRect = orig
             if new != orig { setCrop(new?.integral) }
             return
         }
         if currentTool == .select {
-            if resizeHandle != nil, let item = selectedItem, let old = resizeStartState {
+            if resizeHandle != nil, resizeMoved, let item = selectedItem, let old = resizeStartState {
                 registerStateUndo(item, old: old, actionName: "Resize")
                 changed("Resize")
             }
@@ -549,6 +579,11 @@ final class MarkupCanvasView: NSView {
             if let item = selectedItem, moveStart != nil, moveTotal != .zero {
                 registerMoveUndo(item, delta: moveTotal)
                 delegate?.canvasDidChange()
+            }
+            if liftGroupOpen {
+                liftGroupOpen = false
+                window?.undoManager?.endUndoGrouping()
+                window?.undoManager?.setActionName("Cut Area")
             }
             moveStart = nil
             return
@@ -593,13 +628,13 @@ final class MarkupCanvasView: NSView {
         switch event.keyCode {
         case 53: // Esc
             if textField != nil { cancelPendingText() }
-            else if cropRect != nil { setCrop(nil) }
+            else if currentTool == .crop, cropRect != nil { setCrop(nil) }
             else if selectedItem != nil { selectedItem = nil }
             else { delegate?.canvasRequestsClose() }
             return
         case 51, 117: // Delete / Forward Delete
             if selectedItem != nil { deleteSelection() }
-            else if let c = cropRect { eraseArea(c) }
+            else if currentTool == .crop, let c = cropRect { eraseArea(c) }
             return
         case 49: // Space: hold to pan
             if !spaceDown {

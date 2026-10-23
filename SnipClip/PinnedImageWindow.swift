@@ -62,6 +62,7 @@ final class PinnedImageWindow: NSPanel {
         view.attach(to: self)
         contentView = view
         setAccessibilityTitle("Pinned Screenshot")
+        view.toolTip = "Drag to move · scroll to fade · Esc or double-click to close · right-click for more"
     }
 
     override var canBecomeKey: Bool { true }

@@ -15,17 +15,17 @@ enum MarkupTool: Int, CaseIterable {
         case .text:      return "textformat"
         case .step:      return "1.circle"
         case .blur:      return "checkerboard.rectangle"
-        case .redact:    return "rectangle.fill"
+        case .redact:    return "eye.slash"
         case .spotlight: return "flashlight.on.fill"
         case .ocr:       return "text.viewfinder"
-        case .crop:      return "crop"
+        case .crop:      return "rectangle.dashed"
         }
     }
 
     var name: String {
         switch self {
         case .select:    return "Select & Move"
-        case .pan:       return "Pan (or hold Space)"
+        case .pan:       return "Pan"
         case .pen:       return "Pen"
         case .arrow:     return "Arrow"
         case .rect:      return "Rectangle"
@@ -34,10 +34,10 @@ enum MarkupTool: Int, CaseIterable {
         case .text:      return "Text"
         case .step:      return "Numbered Step"
         case .blur:      return "Pixelate"
-        case .redact:    return "Redact"
+        case .redact:    return "Redact (solid box)"
         case .spotlight: return "Spotlight"
         case .ocr:       return "Copy Text"
-        case .crop:      return "Select Area (drag inside to move · Delete to erase · ⌘C copies it)"
+        case .crop:      return "Select Area"
         }
     }
 
@@ -60,7 +60,20 @@ enum MarkupTool: Int, CaseIterable {
         }
     }
 
-    var tooltip: String { "\(name)  (\(String(shortcut).uppercased()))" }
+    /// How-to shown after the name in the tooltip (not read as the VoiceOver name).
+    var hint: String? {
+        switch self {
+        case .pan:  return "or hold Space and drag"
+        case .ocr:  return "drag a box over text to copy it"
+        case .crop: return "drag inside to move it · Delete erases · ⌘C copies it"
+        default:    return nil
+        }
+    }
+
+    var tooltip: String {
+        let base = "\(name)  (\(String(shortcut).uppercased()))"
+        return hint.map { "\(base)\n\($0)" } ?? base
+    }
 
     /// Letter shortcuts, plus 1–9 / 0 for the tools in sidebar order.
     static func forKey(_ ch: Character) -> MarkupTool? {
