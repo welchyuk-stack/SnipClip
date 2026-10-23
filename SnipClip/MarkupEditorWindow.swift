@@ -1010,10 +1010,28 @@ private final class ClipboardPreviewView: NSVisualEffectView {
         guard isHidden else { return }
         alphaValue = 0
         isHidden = false
-        NSAnimationContext.runAnimationGroup { $0.duration = 0.15; animator().alphaValue = 1 }
+        NSAnimationContext.runAnimationGroup { $0.duration = 0.15; animator().alphaValue = Self.restingAlpha }
     }
 
     @objc private func closeTapped() { hide() }
+
+    /// Slightly see-through so the image behind stays visible; solid on hover.
+    static let restingAlpha: CGFloat = 0.82
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach { removeTrackingArea($0) }
+        addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+                                       owner: self, userInfo: nil))
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        NSAnimationContext.runAnimationGroup { $0.duration = 0.15; animator().alphaValue = 1 }
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        NSAnimationContext.runAnimationGroup { $0.duration = 0.2; animator().alphaValue = Self.restingAlpha }
+    }
 }
 
 
