@@ -5,6 +5,11 @@ protocol MarkupCanvasDelegate: AnyObject {
     func canvasDidChange()
     func canvasDidChangeTool(_ tool: MarkupTool)
     func canvasRequestsClose()
+    /// The visible part of the image changed (crop applied or being edited).
+    func canvasDisplayRectDidChange()
+    func canvasDidCopyText(_ text: String)
+    /// Pan the view by a screen-space delta (Pan tool or Space-drag).
+    func canvasPan(dx: CGFloat, dy: CGFloat)
 }
 
 /// The annotation surface. Its `bounds` is always the image size in points
@@ -17,7 +22,19 @@ final class MarkupCanvasView: NSView {
     let imageSize: NSSize
 
     private(set) var items: [MarkupItem] = [] { didSet { needsDisplay = true } }
-    private(set) var cropRect: NSRect? { didSet { needsDisplay = true } }
+    private(set) var cropRect: NSRect? { didSet { needsDisplay = true; displayRectChanged() } }
+
+    /// The part of the image shown: the whole image while cropping (so the
+    /// crop can be adjusted), otherwise just the cropped area.
+    var displayRect: NSRect {
+        NSRect(origin: .zero, size: imageSize)
+    }
+
+    private func displayRectChanged() {
+        bounds = displayRect
+        delegate?.canvasDisplayRectDidChange()
+        window?.invalidateCursorRects(for: self)
+    }
 
     private(set) var currentTool: MarkupTool = .pen
     var currentColor: NSColor = .systemRed {
@@ -64,11 +81,23 @@ final class MarkupCanvasView: NSView {
 
     override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)
-        setBoundsSize(imageSize)
+        bounds = displayRect
         window?.invalidateCursorRects(for: self)
     }
 
     var zoom: CGFloat { bounds.width > 0 ? max(0.01, frame.width / bounds.width) : 1 }
+
+    /// The fit-to-window scale, ignoring the user's zoom. New strokes are sized
+    /// against this so zooming in to draw doesn't make lines thinner.
+    var baseZoom: CGFloat = 1
+
+    // Crop editing
+    private enum CropDrag { case move(NSPoint, NSRect), resize(Int, NSRect) }
+    private var cropDrag: CropDrag?
+
+    // Panning
+    private var spaceDown = false
+    private var isPanning: Bool { currentTool == .pan || spaceDown }
 
     var isEditingText: Bool { textField != nil }
 
@@ -107,7 +136,9 @@ final class MarkupCanvasView: NSView {
     func setTool(_ tool: MarkupTool) {
         if tool != .text || textField != nil { commitPendingText() }
         if tool != .select { selectedItem = nil }
+        let wasCrop = currentTool == .crop
         currentTool = tool
+        if wasCrop != (tool == .crop) { displayRectChanged() }
         window?.invalidateCursorRects(for: self)
         needsDisplay = true
     }
@@ -130,7 +161,7 @@ final class MarkupCanvasView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         let full = NSRect(origin: .zero, size: imageSize)
         if previewCornerRadius > 0 {
-            NSBezierPath(roundedRect: full, xRadius: previewCornerRadius, yRadius: previewCornerRadius).addClip()
+            NSBezierPath(roundedRect: displayRect, xRadius: previewCornerRadius, yRadius: previewCornerRadius).addClip()
         }
         image.draw(in: full)
 
@@ -163,6 +194,19 @@ final class MarkupCanvasView: NSView {
             }
         }
 
+        if isPressing, currentTool == .ocr {
+            let r = NSRect(from: dragStart, to: constrainedEnd())
+            NSColor.controlAccentColor.withAlphaComponent(0.12).setFill()
+            r.fill()
+            let b = NSBezierPath(rect: r)
+            b.lineWidth = 1.5 / zoom
+            b.setLineDash([5 / zoom, 3 / zoom], count: 2, phase: 0)
+            NSColor.controlAccentColor.setStroke()
+            b.stroke()
+        }
+
+        // The crop is only drawn as an overlay while the Crop tool is active;
+        // otherwise the view is already showing just the cropped area.
         let crop: NSRect? = (isPressing && currentTool == .crop) ? liveCropRect() : cropRect
         if let crop, crop.width > 0, crop.height > 0 {
             let dim = NSBezierPath(rect: full)
@@ -174,6 +218,14 @@ final class MarkupCanvasView: NSView {
             border.lineWidth = 1 / zoom
             NSColor.white.setStroke()
             border.stroke()
+            if currentTool == .crop {
+                let size = 9 / zoom
+                for h in cropCorners(crop) {
+                    let r = NSRect(x: h.x - size / 2, y: h.y - size / 2, width: size, height: size)
+                    NSColor.white.setFill()
+                    NSBezierPath(rect: r).fill()
+                }
+            }
         }
     }
 
@@ -198,8 +250,8 @@ final class MarkupCanvasView: NSView {
         NSRect(from: dragStart, to: constrainedEnd()).intersection(NSRect(origin: .zero, size: imageSize))
     }
 
-    private var newLineWidth: CGFloat { lineWidthChoice / zoom }
-    private var newFontSize: CGFloat { (12 + lineWidthChoice * 2.5) / zoom }
+    private var newLineWidth: CGFloat { lineWidthChoice / baseZoom }
+    private var newFontSize: CGFloat { (12 + lineWidthChoice * 2.5) / baseZoom }
 
     private func makeItem(_ shape: MarkupItem.Shape) -> MarkupItem {
         MarkupItem(shape, color: currentColor, lineWidth: newLineWidth, fontSize: newFontSize)
@@ -217,6 +269,90 @@ final class MarkupCanvasView: NSView {
         case .redact:    return makeItem(.redact(NSRect(from: dragStart, to: end)))
         case .spotlight: return makeItem(.spotlight(NSRect(from: dragStart, to: end)))
         default:         return nil
+        }
+    }
+
+    // MARK: Area selection (cut / move / erase)
+
+    private lazy var sourceBitmap: NSBitmapImageRep? = {
+        image.cgImage(forProposedRect: nil, context: nil, hints: nil).map { NSBitmapImageRep(cgImage: $0) }
+    }()
+
+    /// The capture's pixels inside `rect` (image points).
+    private func imageRegion(_ rect: NSRect) -> NSImage? {
+        guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
+        let s = CGFloat(cg.width) / imageSize.width
+        let px = CGRect(x: rect.minX * s, y: rect.minY * s, width: rect.width * s, height: rect.height * s).integral
+        guard let part = cg.cropping(to: px) else { return nil }
+        return NSImage(cgImage: part, size: rect.size)
+    }
+
+    /// Average colour just outside `rect`, used to fill the hole left behind.
+    private func surroundingColor(_ rect: NSRect) -> NSColor {
+        guard let rep = sourceBitmap else { return .white }
+        let s = CGFloat(rep.pixelsWide) / imageSize.width
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, n: CGFloat = 0
+        func sample(_ x: CGFloat, _ y: CGFloat) {
+            let px = Int(x * s), py = Int(y * s)
+            guard px >= 0, py >= 0, px < rep.pixelsWide, py < rep.pixelsHigh,
+                  let c = rep.colorAt(x: px, y: py)?.usingColorSpace(.sRGB) else { return }
+            r += c.redComponent; g += c.greenComponent; b += c.blueComponent; n += 1
+        }
+        let o: CGFloat = 2
+        for i in 0...12 {
+            let t = CGFloat(i) / 12
+            sample(rect.minX + rect.width * t, rect.minY - o)
+            sample(rect.minX + rect.width * t, rect.maxY + o)
+            sample(rect.minX - o, rect.minY + rect.height * t)
+            sample(rect.maxX + o, rect.minY + rect.height * t)
+        }
+        guard n > 0 else { return .white }
+        return NSColor(srgbRed: r / n, green: g / n, blue: b / n, alpha: 1)
+    }
+
+    private func eraseItem(_ rect: NSRect) -> MarkupItem {
+        MarkupItem(.erase(rect), color: surroundingColor(rect), lineWidth: 0, fontSize: 0)
+    }
+
+    /// Delete: fill the selected area with the surrounding colour.
+    func eraseArea(_ rect: NSRect) {
+        window?.undoManager?.beginUndoGrouping()
+        addItem(eraseItem(rect), actionName: "Erase Area")
+        setCrop(nil)
+        window?.undoManager?.endUndoGrouping()
+        window?.undoManager?.setActionName("Erase Area")
+    }
+
+    /// Dragging inside the selection: cut the pixels out into a movable piece,
+    /// fill the hole, and hand the drag to the normal move logic.
+    private func liftSelection(_ rect: NSRect, at pt: NSPoint) {
+        guard let pixels = imageRegion(rect) else { return }
+        let piece = MarkupItem(.patch(pixels, rect), color: .clear, lineWidth: 0, fontSize: 0)
+        window?.undoManager?.beginUndoGrouping()
+        addItem(eraseItem(rect), actionName: "Cut Area")
+        addItem(piece, actionName: "Cut Area")
+        setCrop(nil)
+        window?.undoManager?.endUndoGrouping()
+        window?.undoManager?.setActionName("Cut Area")
+        // Switch to Select with the piece picked up, so this same drag moves it.
+        currentTool = .select
+        delegate?.canvasDidChangeTool(.select)
+        window?.invalidateCursorRects(for: self)
+        selectedItem = piece
+        moveStart = pt
+        moveTotal = .zero
+    }
+
+    // MARK: Copy Text
+
+    /// Recognises text inside `rect` (image points) of the original capture.
+    private func copyText(in rect: NSRect) {
+        guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return }
+        let s = CGFloat(cg.width) / imageSize.width
+        let px = CGRect(x: rect.minX * s, y: rect.minY * s, width: rect.width * s, height: rect.height * s).integral
+        guard let part = cg.cropping(to: px) else { return }
+        TextRecognition.copyText(from: NSImage(cgImage: part, size: rect.size)) { [weak self] text in
+            if let text { self?.delegate?.canvasDidCopyText(text) }
         }
     }
 
@@ -245,8 +381,8 @@ final class MarkupCanvasView: NSView {
         guard let item = selectedItem else { return false }
         var s = item.state
         switch item.shape {
-        case .text, .step: s.fontSize = (12 + choice * 2.5) / zoom
-        default:           s.lineWidth = choice / zoom
+        case .text, .step: s.fontSize = (12 + choice * 2.5) / baseZoom
+        default:           s.lineWidth = choice / baseZoom
         }
         setState(item, s, actionName: "Change Line Width")
         return true
@@ -266,8 +402,28 @@ final class MarkupCanvasView: NSView {
         items.reversed().first { $0.hitTest(p, tolerance: 4 / zoom) }
     }
 
+    private func cropCorners(_ r: NSRect) -> [NSPoint] {
+        [NSPoint(x: r.minX, y: r.minY), NSPoint(x: r.maxX, y: r.minY),
+         NSPoint(x: r.maxX, y: r.maxY), NSPoint(x: r.minX, y: r.maxY)]
+    }
+
     override func mouseDown(with event: NSEvent) {
         let pt = convert(event.locationInWindow, from: nil)
+        if isPanning {
+            NSCursor.closedHand.set()
+            return
+        }
+        if currentTool == .crop, let c = cropRect, textField == nil {
+            let r = 9 / zoom
+            if let i = cropCorners(c).firstIndex(where: { abs($0.x - pt.x) <= r && abs($0.y - pt.y) <= r }) {
+                cropDrag = .resize(i, c)
+                return
+            }
+            if c.contains(pt) {
+                liftSelection(c, at: pt)
+                return
+            }
+        }
         shiftDown = event.modifierFlags.contains(.shift)
 
         // Double-click an existing text item (any tool) to re-edit it.
@@ -323,8 +479,29 @@ final class MarkupCanvasView: NSView {
     }
 
     override func mouseDragged(with event: NSEvent) {
+        if isPanning {
+            delegate?.canvasPan(dx: event.deltaX, dy: event.deltaY)
+            return
+        }
         let pt = convert(event.locationInWindow, from: nil)
         shiftDown = event.modifierFlags.contains(.shift)
+        if let drag = cropDrag {
+            let full = NSRect(origin: .zero, size: imageSize)
+            switch drag {
+            case .move(let start, let orig):
+                var r = orig.offsetBy(dx: pt.x - start.x, dy: pt.y - start.y)
+                r.origin.x = min(max(r.minX, 0), full.width - r.width)
+                r.origin.y = min(max(r.minY, 0), full.height - r.height)
+                cropRect = r
+            case .resize(let i, let orig):
+                let opposite = cropCorners(orig)[(i + 2) % 4]
+                let p = NSPoint(x: min(max(pt.x, 0), full.width), y: min(max(pt.y, 0), full.height))
+                var r = NSRect(from: opposite, to: p)
+                r.size.width = max(r.width, 4); r.size.height = max(r.height, 4)
+                cropRect = r
+            }
+            return
+        }
         if currentTool == .select {
             if let i = resizeHandle, let item = selectedItem {
                 item.moveHandle(i, to: pt)
@@ -346,6 +523,19 @@ final class MarkupCanvasView: NSView {
     }
 
     override func mouseUp(with event: NSEvent) {
+        if isPanning {
+            (spaceDown || currentTool == .pan ? NSCursor.openHand : NSCursor.arrow).set()
+            return
+        }
+        if let drag = cropDrag {
+            cropDrag = nil
+            let orig: NSRect
+            switch drag { case .move(_, let o), .resize(_, let o): orig = o }
+            let new = cropRect
+            cropRect = orig
+            if new != orig { setCrop(new?.integral) }
+            return
+        }
         if currentTool == .select {
             if resizeHandle != nil, let item = selectedItem, let old = resizeStartState {
                 registerStateUndo(item, old: old, actionName: "Resize")
@@ -371,7 +561,12 @@ final class MarkupCanvasView: NSView {
         switch currentTool {
         case .crop:
             let r = liveCropRect()
-            if r.width > 2 / zoom, r.height > 2 / zoom { setCrop(r.integral.intersection(NSRect(origin: .zero, size: imageSize))) }
+            if r.width > 2 / zoom, r.height > 2 / zoom {
+                setCrop(r.integral.intersection(NSRect(origin: .zero, size: imageSize)))
+            }
+        case .ocr:
+            let r = NSRect(from: dragStart, to: end).intersection(NSRect(origin: .zero, size: imageSize))
+            if r.width > 4 / zoom, r.height > 4 / zoom { copyText(in: r) }
         case .pen:
             if activePoints.count > 1 { addItem(makeItem(.pen(activePoints)), actionName: "Draw") }
         default:
@@ -395,12 +590,19 @@ final class MarkupCanvasView: NSView {
         switch event.keyCode {
         case 53: // Esc
             if textField != nil { cancelPendingText() }
-            else if currentTool == .crop, cropRect != nil { setCrop(nil) }
+            else if cropRect != nil { setCrop(nil) }
             else if selectedItem != nil { selectedItem = nil }
             else { delegate?.canvasRequestsClose() }
             return
         case 51, 117: // Delete / Forward Delete
-            if currentTool == .crop, cropRect != nil { setCrop(nil) } else { deleteSelection() }
+            if selectedItem != nil { deleteSelection() }
+            else if let c = cropRect { eraseArea(c) }
+            return
+        case 49: // Space: hold to pan
+            if !spaceDown {
+                spaceDown = true
+                NSCursor.openHand.set()
+            }
             return
         case 123, 124, 125, 126:
             guard let item = selectedItem else { break }
@@ -430,6 +632,16 @@ final class MarkupCanvasView: NSView {
         super.keyDown(with: event)
     }
 
+    override func keyUp(with event: NSEvent) {
+        if event.keyCode == 49, spaceDown {
+            spaceDown = false
+            window?.invalidateCursorRects(for: self)
+            resetCursorRects()
+            return
+        }
+        super.keyUp(with: event)
+    }
+
     override func cancelOperation(_ sender: Any?) {
         if textField != nil { cancelPendingText() } else { delegate?.canvasRequestsClose() }
     }
@@ -440,6 +652,7 @@ final class MarkupCanvasView: NSView {
         let cursor: NSCursor
         switch currentTool {
         case .select: cursor = .arrow
+        case .pan:    cursor = .openHand
         case .text:   cursor = .iBeam
         default:      cursor = .crosshair
         }

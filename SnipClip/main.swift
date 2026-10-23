@@ -55,6 +55,11 @@ func buildMainMenu() -> NSMenu {
         item("Select All", #selector(NSText.selectAll(_:)), "a"),
         item("Duplicate", #selector(MarkupEditorWindow.duplicate(_:)), "d"),
     ])
+    submenu("View", [
+        item("Zoom In", #selector(MarkupEditorWindow.zoomIn(_:)), "="),
+        item("Zoom Out", #selector(MarkupEditorWindow.zoomOut(_:)), "-"),
+        item("Zoom to Fit", #selector(MarkupEditorWindow.zoomToFit(_:)), "0"),
+    ])
     return main
 }
 

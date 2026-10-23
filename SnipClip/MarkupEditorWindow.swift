@@ -51,10 +51,14 @@ final class MarkupEditorWindow: NSWindow, NSDraggingSource {
     private var saveBtn: SidebarIconButton!
     private var bgBtn: SidebarIconButton!
     private var container: CanvasContainerView!
+    private var preview: ClipboardPreviewView!
+    private var zoomBar: ZoomBarView!
+    private var lastCrop: NSRect?
+    private var previewWork: DispatchWorkItem?
 
     private let sidebarW: CGFloat = 92
     private let minCanvasW: CGFloat = 300
-    private let minContentH: CGFloat = 650
+    private let minContentH: CGFloat = 720
 
     init(image: NSImage, entry: CaptureHistory.Entry?) {
         self.sourceImage = image
@@ -129,7 +133,19 @@ final class MarkupEditorWindow: NSWindow, NSDraggingSource {
         container.background = ExportBackground.current
         self.container = container
 
-        [sidebar, divider, container].forEach { root.addSubview($0) }
+        let pv = ClipboardPreviewView(frame: NSRect(x: totalW - 220 - 14, y: 14, width: 220, height: 170))
+        pv.autoresizingMask = [.minXMargin, .maxYMargin]
+        pv.isHidden = true
+        preview = pv
+
+        let zb = ZoomBarView(frame: NSRect(x: sidebarW + 1 + 14, y: 14, width: 236, height: 30))
+        zb.autoresizingMask = [.maxXMargin, .maxYMargin]
+        zb.onZoom = { [weak self] factor in self?.container.setZoom(factor) }
+        zb.onFit = { [weak self] in self?.container.setZoom(1, resetPan: true) }
+        container.onZoomChange = { [weak zb] factor, percent in zb?.update(factor: factor, percent: percent) }
+        zoomBar = zb
+
+        [sidebar, divider, container, pv, zb].forEach { root.addSubview($0) }
         contentView = root
         container.fitCanvas()
         selectTool(.pen)
@@ -145,10 +161,20 @@ final class MarkupEditorWindow: NSWindow, NSDraggingSource {
         bar.state = .active
 
         // ── Top group (flipped, laid out top-down) ──
-        let topH: CGFloat = 472
+        let topH: CGFloat = 532
         let top = FlippedView(frame: NSRect(x: 0, y: height - topH, width: sidebarW, height: topH))
         top.autoresizingMask = [.minYMargin]
         var yCur: CGFloat = 10
+
+        func caption(_ text: String) {
+            let l = NSTextField(labelWithString: text.uppercased())
+            l.font = .systemFont(ofSize: 9, weight: .semibold)
+            l.textColor = .tertiaryLabelColor
+            l.alignment = .center
+            l.frame = NSRect(x: 0, y: yCur, width: sidebarW, height: 12)
+            top.addSubview(l)
+            yCur += 16
+        }
 
         func separator() {
             yCur += 8
@@ -198,8 +224,9 @@ final class MarkupEditorWindow: NSWindow, NSDraggingSource {
         separator()
 
         // Line widths.
-        for (i, w) in [CGFloat(2), 4, 8].enumerated() {
-            let b = LineWidthButton(lineWidth: w, tip: "Line Width \(Int(w))")
+        caption("Line width")
+        for (i, (w, name)) in [(CGFloat(2), "Thin"), (4, "Medium"), (8, "Thick")].enumerated() {
+            let b = LineWidthButton(lineWidth: w, tip: "\(name) lines and text (applies to the selected shape too)")
             b.frame = NSRect(x: swX + CGFloat(i) * 30, y: yCur, width: 24, height: 24)
             b.onAction = { [weak self] in
                 self?.selectWidth(w)
@@ -224,7 +251,7 @@ final class MarkupEditorWindow: NSWindow, NSDraggingSource {
         bar.addSubview(top)
 
         // ── Bottom group ──
-        let bottom = FlippedView(frame: NSRect(x: 0, y: 0, width: sidebarW, height: 172))
+        let bottom = FlippedView(frame: NSRect(x: 0, y: 0, width: sidebarW, height: 194))
         bottom.autoresizingMask = [.maxYMargin]
 
         let copy = SidebarIconButton(sfSymbol: "doc.on.doc", tip: "Copy (⌘C)")
@@ -237,8 +264,6 @@ final class MarkupEditorWindow: NSWindow, NSDraggingSource {
             self.beginDragOut(from: drag, event: event)
         }
         drag.onAction = { [weak self] in self?.refocusCanvas() }
-        let text = SidebarIconButton(sfSymbol: "text.viewfinder", tip: "Copy Text (⇧⌘C)")
-        text.onAction = { [weak self] in self?.copyRecognizedText(nil); self?.refocusCanvas() }
         let pin = SidebarIconButton(sfSymbol: "pin", tip: "Pin on Screen (⌘P)")
         pin.onAction = { [weak self] in self?.pinToScreen(nil) }
         let bg = SidebarIconButton(sfSymbol: "photo.artframe", tip: "Background & Padding")
@@ -251,17 +276,24 @@ final class MarkupEditorWindow: NSWindow, NSDraggingSource {
         let snip = SidebarIconButton(sfSymbol: "camera.viewfinder", tip: "New Snip")
         snip.onAction = { [weak self] in self?.newSnip() }
 
-        copy.frame = NSRect(x: toolX, y: 0, width: 36, height: 36)
-        save.frame = NSRect(x: toolX + 42, y: 0, width: 36, height: 36)
-        drag.frame = NSRect(x: toolX, y: 42, width: 36, height: 36)
-        snip.frame = NSRect(x: toolX + 42, y: 42, width: 36, height: 36)
-        text.frame = NSRect(x: toolX, y: 84, width: 36, height: 36)
-        pin.frame = NSRect(x: toolX + 42, y: 84, width: 36, height: 36)
-        bg.frame = NSRect(x: toolX, y: 126, width: 36, height: 36)
-        dup.frame = NSRect(x: toolX + 42, y: 126, width: 36, height: 36)
+        // One-off actions (not tools), so they never stay selected.
+        let actions = NSTextField(labelWithString: "ACTIONS")
+        actions.font = .systemFont(ofSize: 9, weight: .semibold)
+        actions.textColor = .tertiaryLabelColor
+        actions.alignment = .center
+        actions.frame = NSRect(x: 0, y: 0, width: sidebarW, height: 12)
+        bottom.addSubview(actions)
+        let y0: CGFloat = 22
+        copy.frame = NSRect(x: toolX, y: y0, width: 36, height: 36)
+        save.frame = NSRect(x: toolX + 42, y: y0, width: 36, height: 36)
+        drag.frame = NSRect(x: toolX, y: y0 + 42, width: 36, height: 36)
+        snip.frame = NSRect(x: toolX + 42, y: y0 + 42, width: 36, height: 36)
+        pin.frame = NSRect(x: toolX, y: y0 + 84, width: 36, height: 36)
+        bg.frame = NSRect(x: toolX + 42, y: y0 + 84, width: 36, height: 36)
+        dup.frame = NSRect(x: toolX, y: y0 + 126, width: 36, height: 36)
         bg.isSelected = ExportBackground.current.isOn
         bgBtn = bg
-        [copy, save, drag, snip, text, pin, bg, dup].forEach { bottom.addSubview($0) }
+        [copy, save, drag, snip, pin, bg, dup].forEach { bottom.addSubview($0) }
         copyBtn = copy
         saveBtn = save
         bar.addSubview(bottom)
@@ -304,14 +336,14 @@ final class MarkupEditorWindow: NSWindow, NSDraggingSource {
         NSPasteboard.general.writeObjects([img])
         NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
         copyBtn.showConfirmation()
+        preview.show(title: "Copied to clipboard", image: img)
         ReviewPrompter.recordSuccessfulExport()
     }
 
-    /// Recognises text in the marked-up image and copies it (on-device).
+    /// ⇧⌘C picks the Copy Text tool: drag a box to copy the text inside it.
     @objc func copyRecognizedText(_ sender: Any?) {
         canvas.commitPendingText()
-        guard let img = renderFinal() else { return }
-        TextRecognition.copyText(from: img)
+        selectTool(.ocr)
     }
 
     /// Floats the marked-up image above other windows and closes the editor.
@@ -321,6 +353,10 @@ final class MarkupEditorWindow: NSWindow, NSDraggingSource {
         PinController.shared.pin(img)
         close()
     }
+
+    @objc func zoomIn(_ sender: Any?) { container.setZoom(container.zoomFactor * 1.25) }
+    @objc func zoomOut(_ sender: Any?) { container.setZoom(container.zoomFactor / 1.25) }
+    @objc func zoomToFit(_ sender: Any?) { container.setZoom(1, resetPan: true) }
 
     @objc func duplicate(_ sender: Any?) {
         canvas.duplicateSelection()
@@ -592,7 +628,31 @@ extension MarkupEditorWindow {
 // MARK: - MarkupCanvasDelegate
 
 extension MarkupEditorWindow: MarkupCanvasDelegate {
-    func canvasDidChange() {}
+    func canvasDidChange() {
+        // While a crop is set, keep the preview showing what Copy will produce.
+        let crop = canvas.cropRect
+        guard crop != nil || lastCrop != nil else { return }
+        lastCrop = crop
+        previewWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            if self.canvas.cropRect == nil {
+                self.preview.hide()
+            } else if let img = self.renderFinal() {
+                self.preview.show(title: "Crop · ⌘C to copy", image: img)
+            }
+        }
+        previewWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: work)
+    }
+
+    func canvasPan(dx: CGFloat, dy: CGFloat) {
+        container.pan(dx: dx, dy: -dy)
+    }
+
+    func canvasDidCopyText(_ text: String) {
+        preview.show(title: "Copied text", text: text)
+    }
 
     func canvasDidChangeTool(_ tool: MarkupTool) {
         syncToolButtons(tool)
@@ -600,6 +660,10 @@ extension MarkupEditorWindow: MarkupCanvasDelegate {
 
     func canvasRequestsClose() {
         performClose(nil)
+    }
+
+    func canvasDisplayRectDidChange() {
+        container?.fitCanvas()
     }
 }
 
@@ -614,6 +678,48 @@ private final class CanvasContainerView: NSView {
     private let canvas: MarkupCanvasView
     var background: ExportBackground? {
         didSet { fitCanvas(); needsDisplay = true }
+    }
+
+    /// User zoom relative to fit-to-window (1 = fit), and pan offset in points.
+    private(set) var zoomFactor: CGFloat = 1
+    private var panOffset = NSPoint.zero
+    var onZoomChange: ((CGFloat, Int) -> Void)?
+
+    static let zoomRange: ClosedRange<CGFloat> = 0.25...8
+
+    func setZoom(_ factor: CGFloat, resetPan: Bool = false, anchor: NSPoint? = nil) {
+        let old = zoomFactor
+        let new = min(max(factor, Self.zoomRange.lowerBound), Self.zoomRange.upperBound)
+        // Keep the point under the anchor (default: centre) fixed while zooming.
+        let a = anchor ?? NSPoint(x: bounds.midX, y: bounds.midY)
+        let centre = NSPoint(x: bounds.midX + panOffset.x, y: bounds.midY + panOffset.y)
+        let k = new / old
+        panOffset = resetPan ? .zero : NSPoint(x: a.x + (centre.x - a.x) * k - bounds.midX,
+                                               y: a.y + (centre.y - a.y) * k - bounds.midY)
+        zoomFactor = new
+        fitCanvas()
+        needsDisplay = true
+    }
+
+    func pan(dx: CGFloat, dy: CGFloat) {
+        panOffset.x += dx
+        panOffset.y += dy
+        fitCanvas()
+        needsDisplay = true
+    }
+
+    override func scrollWheel(with event: NSEvent) {
+        if event.modifierFlags.contains(.command) {
+            let step = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY / 200 : event.scrollingDeltaY / 10
+            setZoom(zoomFactor * (1 + step), anchor: convert(event.locationInWindow, from: nil))
+        } else {
+            let k: CGFloat = event.hasPreciseScrollingDeltas ? 1 : 10
+            pan(dx: event.scrollingDeltaX * k, dy: -event.scrollingDeltaY * k)
+        }
+    }
+
+    override func magnify(with event: NSEvent) {
+        setZoom(zoomFactor * (1 + event.magnification), anchor: convert(event.locationInWindow, from: nil))
     }
 
     init(frame: NSRect, canvas: MarkupCanvasView) {
@@ -636,7 +742,7 @@ private final class CanvasContainerView: NSView {
         // Live preview of the export background around the canvas.
         guard let bg = background, bg.isOn else { return }
         let s = canvas.zoom
-        let p = bg.pad(for: canvas.imageSize) * s
+        let p = bg.pad(for: canvas.displayRect.size) * s
         bg.drawFill(in: canvas.frame.insetBy(dx: -p, dy: -p))
         bg.drawShadow(for: canvas.frame, scale: s)
     }
@@ -646,14 +752,24 @@ private final class CanvasContainerView: NSView {
     }
 
     func fitCanvas() {
-        let img = canvas.imageSize
+        let img = canvas.displayRect.size
         guard img.width > 0, img.height > 0, bounds.width > 0, bounds.height > 0 else { return }
         let bg = background?.isOn == true ? background : nil
         let pad = bg?.pad(for: img) ?? 0
-        let s = min(1, min(bounds.width / (img.width + 2 * pad), bounds.height / (img.height + 2 * pad)))
+        let fit = min(1, min(bounds.width / (img.width + 2 * pad), bounds.height / (img.height + 2 * pad)))
+        let s = fit * zoomFactor
         let w = img.width * s, h = img.height * s
-        let f = NSRect(x: (bounds.width - w) / 2, y: (bounds.height - h) / 2, width: w, height: h).integral
+        // Don't let the image be panned completely out of view.
+        let limX = max(0, (w + 2 * pad * s - bounds.width) / 2) + 40
+        let limY = max(0, (h + 2 * pad * s - bounds.height) / 2) + 40
+        if zoomFactor <= 1 { panOffset = .zero }
+        panOffset.x = min(max(panOffset.x, -limX), limX)
+        panOffset.y = min(max(panOffset.y, -limY), limY)
+        let f = NSRect(x: (bounds.width - w) / 2 + panOffset.x, y: (bounds.height - h) / 2 + panOffset.y,
+                       width: w, height: h).integral
+        canvas.baseZoom = fit
         canvas.frame = f
+        onZoomChange?(zoomFactor, Int((s * 100).rounded()))
         // In image points; drawn as a clip by the canvas (layer-backing the
         // canvas for a corner radius breaks its mouse handling).
         canvas.previewCornerRadius = bg?.cornerRadius(for: img) ?? 0
@@ -801,4 +917,160 @@ struct ExportBackground {
         out.size = outPt
         return out
     }
+}
+
+
+// MARK: - Clipboard preview
+
+/// Small panel in the editor's bottom-right corner showing what was just
+/// copied (image or text), or what the current crop will copy.
+private final class ClipboardPreviewView: NSVisualEffectView {
+    private let titleLabel = NSTextField(labelWithString: "")
+    private let imageView = NSImageView()
+    private let textView = NSTextField(wrappingLabelWithString: "")
+    private let closeButton = NSButton()
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        material = .popover
+        blendingMode = .withinWindow
+        state = .active
+        wantsLayer = true
+        layer?.cornerRadius = 10
+        layer?.masksToBounds = true
+        layer?.borderWidth = 1
+        layer?.borderColor = NSColor.separatorColor.cgColor
+
+        titleLabel.font = .systemFont(ofSize: 11, weight: .semibold)
+        titleLabel.textColor = .secondaryLabelColor
+        titleLabel.frame = NSRect(x: 10, y: frame.height - 24, width: frame.width - 40, height: 16)
+        titleLabel.autoresizingMask = [.width, .minYMargin]
+
+        closeButton.bezelStyle = .inline
+        closeButton.isBordered = false
+        closeButton.image = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: "Hide preview")
+        closeButton.contentTintColor = .tertiaryLabelColor
+        closeButton.frame = NSRect(x: frame.width - 26, y: frame.height - 26, width: 18, height: 18)
+        closeButton.autoresizingMask = [.minXMargin, .minYMargin]
+        closeButton.target = self
+        closeButton.action = #selector(closeTapped)
+
+        let body = NSRect(x: 10, y: 10, width: frame.width - 20, height: frame.height - 40)
+        imageView.frame = body
+        imageView.imageScaling = .scaleProportionallyUpOrDown
+        imageView.wantsLayer = true
+        imageView.layer?.cornerRadius = 4
+        textView.frame = body
+        textView.font = .systemFont(ofSize: 11)
+        textView.textColor = .labelColor
+        textView.maximumNumberOfLines = 8
+        textView.lineBreakMode = .byTruncatingTail
+
+        [titleLabel, closeButton, imageView, textView].forEach { addSubview($0) }
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    func show(title: String, image: NSImage) {
+        titleLabel.stringValue = title
+        imageView.image = image
+        imageView.isHidden = false
+        textView.isHidden = true
+        reveal()
+    }
+
+    func show(title: String, text: String) {
+        titleLabel.stringValue = title
+        textView.stringValue = text
+        textView.isHidden = false
+        imageView.isHidden = true
+        imageView.image = nil
+        reveal()
+    }
+
+    func hide() {
+        isHidden = true
+        imageView.image = nil
+    }
+
+    private func reveal() {
+        guard isHidden else { return }
+        alphaValue = 0
+        isHidden = false
+        NSAnimationContext.runAnimationGroup { $0.duration = 0.15; animator().alphaValue = 1 }
+    }
+
+    @objc private func closeTapped() { hide() }
+}
+
+
+// MARK: - Zoom bar
+
+/// − [slider] + 100% Fit, floating at the bottom-left of the canvas area.
+private final class ZoomBarView: NSVisualEffectView {
+    var onZoom: ((CGFloat) -> Void)?
+    var onFit: (() -> Void)?
+
+    private let slider = NSSlider()
+    private let percent = NSTextField(labelWithString: "100%")
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        material = .popover
+        blendingMode = .withinWindow
+        state = .active
+        wantsLayer = true
+        layer?.cornerRadius = frame.height / 2
+        layer?.masksToBounds = true
+        layer?.borderWidth = 1
+        layer?.borderColor = NSColor.separatorColor.cgColor
+
+        func button(_ symbol: String, _ tip: String, _ action: Selector) -> NSButton {
+            let b = NSButton(image: NSImage(systemSymbolName: symbol, accessibilityDescription: tip)!,
+                             target: self, action: action)
+            b.isBordered = false
+            b.toolTip = tip
+            b.contentTintColor = .secondaryLabelColor
+            return b
+        }
+        let minus = button("minus.magnifyingglass", "Zoom Out (⌘−)", #selector(zoomOut))
+        let plus = button("plus.magnifyingglass", "Zoom In (⌘+)", #selector(zoomIn))
+        let fit = NSButton(title: "Fit", target: self, action: #selector(fitTapped))
+        fit.bezelStyle = .inline
+        fit.toolTip = "Zoom to Fit (⌘0)"
+        fit.font = .systemFont(ofSize: 11, weight: .medium)
+
+        // Slider works on log2 of the zoom so each step feels even.
+        slider.minValue = Double(log2(0.25))
+        slider.maxValue = Double(log2(8.0))
+        slider.doubleValue = 0
+        slider.controlSize = .small
+        slider.target = self
+        slider.action = #selector(sliderMoved)
+        slider.toolTip = "Zoom (pinch, or ⌘-scroll)"
+
+        percent.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular)
+        percent.textColor = .secondaryLabelColor
+        percent.alignment = .right
+
+        let y = (frame.height - 18) / 2
+        minus.frame = NSRect(x: 8, y: y, width: 20, height: 18)
+        slider.frame = NSRect(x: 30, y: y, width: 92, height: 18)
+        plus.frame = NSRect(x: 124, y: y, width: 20, height: 18)
+        percent.frame = NSRect(x: 146, y: y + 1, width: 42, height: 16)
+        fit.frame = NSRect(x: 192, y: y - 1, width: 36, height: 20)
+        [minus, slider, plus, percent, fit].forEach { addSubview($0) }
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    func update(factor: CGFloat, percent value: Int) {
+        slider.doubleValue = Double(log2(factor))
+        percent.stringValue = "\(value)%"
+    }
+
+    @objc private func sliderMoved() { onZoom?(CGFloat(pow(2, slider.doubleValue))) }
+    @objc private func zoomIn() { onZoom?(CGFloat(pow(2, slider.doubleValue)) * 1.25) }
+    @objc private func zoomOut() { onZoom?(CGFloat(pow(2, slider.doubleValue)) / 1.25) }
+    @objc private func fitTapped() { onFit?() }
 }

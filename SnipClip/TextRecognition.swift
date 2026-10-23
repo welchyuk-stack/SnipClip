@@ -21,20 +21,23 @@ enum TextRecognition {
 
     /// Recognises text and copies it to the clipboard, with a short toast
     /// confirming the result.
-    static func copyText(from image: NSImage) {
+    static func copyText(from image: NSImage, completion: ((String?) -> Void)? = nil) {
         guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
             Toast.show("No text found")
+            completion?(nil)
             return
         }
         recognize(in: cg) { text in
             guard let text else {
                 Toast.show("No text found")
+                completion?(nil)
                 return
             }
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(text, forType: .string)
             let lines = text.split(separator: "\n").count
             Toast.show(lines == 1 ? "Copied text" : "Copied \(lines) lines of text")
+            completion?(text)
         }
     }
 }

@@ -1,11 +1,12 @@
 import AppKit
 
 enum MarkupTool: Int, CaseIterable {
-    case select, pen, arrow, rect, circle, highlight, text, step, blur, redact, spotlight, crop
+    case select, pan, pen, arrow, rect, circle, highlight, text, step, blur, redact, spotlight, ocr, crop
 
     var symbol: String {
         switch self {
         case .select:    return "cursorarrow"
+        case .pan:       return "hand.raised"
         case .pen:       return "pencil.tip"
         case .arrow:     return "arrow.up.forward"
         case .rect:      return "rectangle"
@@ -16,6 +17,7 @@ enum MarkupTool: Int, CaseIterable {
         case .blur:      return "checkerboard.rectangle"
         case .redact:    return "rectangle.fill"
         case .spotlight: return "flashlight.on.fill"
+        case .ocr:       return "text.viewfinder"
         case .crop:      return "crop"
         }
     }
@@ -23,6 +25,7 @@ enum MarkupTool: Int, CaseIterable {
     var name: String {
         switch self {
         case .select:    return "Select & Move"
+        case .pan:       return "Pan (or hold Space)"
         case .pen:       return "Pen"
         case .arrow:     return "Arrow"
         case .rect:      return "Rectangle"
@@ -33,13 +36,15 @@ enum MarkupTool: Int, CaseIterable {
         case .blur:      return "Pixelate"
         case .redact:    return "Redact"
         case .spotlight: return "Spotlight"
-        case .crop:      return "Crop"
+        case .ocr:       return "Copy Text"
+        case .crop:      return "Select Area (drag inside to move · Delete to erase · ⌘C copies it)"
         }
     }
 
     var shortcut: Character {
         switch self {
         case .select:    return "v"
+        case .pan:       return "m"
         case .pen:       return "p"
         case .arrow:     return "a"
         case .rect:      return "r"
@@ -50,6 +55,7 @@ enum MarkupTool: Int, CaseIterable {
         case .blur:      return "b"
         case .redact:    return "x"
         case .spotlight: return "l"
+        case .ocr:       return "e"
         case .crop:      return "c"
         }
     }
@@ -68,7 +74,7 @@ enum MarkupTool: Int, CaseIterable {
 
     var isRectBased: Bool {
         switch self {
-        case .rect, .circle, .highlight, .blur, .redact, .spotlight, .crop: return true
+        case .rect, .circle, .highlight, .blur, .redact, .spotlight, .ocr, .crop: return true
         default: return false
         }
     }
@@ -95,6 +101,10 @@ final class MarkupItem {
         /// Dims everything outside the rect (all spotlights are drawn
         /// together by `drawSpotlights` so overlaps don't stack).
         case spotlight(NSRect)
+        /// A piece of the capture lifted out with the area selection.
+        case patch(NSImage, NSRect)
+        /// Fills where a piece was lifted or deleted (colour = surrounding background).
+        case erase(NSRect)
     }
 
     /// Settable so the canvas can resize, recolour and undo edits.
@@ -201,6 +211,14 @@ final class MarkupItem {
         case .spotlight:
             break // see drawSpotlights
 
+        case .patch(let img, let r):
+            img.draw(in: r, from: .zero, operation: .sourceOver, fraction: 1,
+                     respectFlipped: true, hints: [.interpolation: NSImageInterpolation.high.rawValue])
+
+        case .erase(let r):
+            color.setFill()
+            r.fill()
+
         case .blur(let r):
             NSGraphicsContext.saveGraphicsState()
             NSBezierPath(rect: r).addClip()
@@ -282,7 +300,9 @@ final class MarkupItem {
             return NSRect.enclosing([a, b]).insetBy(dx: -pad / 2, dy: -pad / 2)
         case .rect(let r), .circle(let r):
             return r.insetBy(dx: -lineWidth / 2, dy: -lineWidth / 2)
-        case .highlight(let r), .blur(let r), .redact(let r), .spotlight(let r):
+        case .highlight(let r), .blur(let r), .redact(let r), .spotlight(let r), .erase(let r):
+            return r
+        case .patch(_, let r):
             return r
         case .text(let pt, let str):
             let size = NSAttributedString(string: str, attributes: textAttributes).size()
@@ -316,7 +336,9 @@ final class MarkupItem {
             let outer = r.insetBy(dx: -tolerance - 2, dy: -tolerance - 2)
             let inner = r.insetBy(dx: tolerance + 2, dy: tolerance + 2)
             return outer.contains(p) && (inner.width < 24 || inner.height < 24 || !inner.contains(p))
-        case .highlight, .blur, .redact, .text, .step:
+        case .erase:
+            return false // background fill, never selectable
+        case .highlight, .blur, .redact, .text, .step, .patch:
             return bounds.insetBy(dx: -tolerance, dy: -tolerance).contains(p)
         }
     }
@@ -335,6 +357,8 @@ final class MarkupItem {
         case .blur(let r):         shape = .blur(o(r))
         case .redact(let r):       shape = .redact(o(r))
         case .spotlight(let r):    shape = .spotlight(o(r))
+        case .patch(let i, let r): shape = .patch(i, o(r))
+        case .erase(let r):        shape = .erase(o(r))
         }
     }
 
@@ -344,6 +368,8 @@ final class MarkupItem {
     private var boxRect: NSRect? {
         switch shape {
         case .rect(let r), .circle(let r), .highlight(let r), .blur(let r), .redact(let r), .spotlight(let r):
+            return r
+        case .patch(_, let r):
             return r
         default:
             return nil
@@ -358,6 +384,7 @@ final class MarkupItem {
         case .blur:      return .blur(r)
         case .redact:    return .redact(r)
         case .spotlight: return .spotlight(r)
+        case .patch(let i, _): return .patch(i, r)
         default:         return nil
         }
     }
