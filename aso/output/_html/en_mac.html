@@ -1,0 +1,77 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@800&family=Inter:wght@600;700;800&display=block">
+<style>html{font-size:28.8px;--bg:#0d1f3d;--ink:#FFFFFF;--accent:#6FA8FF;--accent2:#4a90ff;--muted:#9db4d9;--pill-bg:#FFFFFF;--pill-ink:#0d1f3d;--frame:#141414;--f-headline:'Plus Jakarta Sans';--f-body:'Inter';--f-script:'Plus Jakarta Sans';--w-headline:800}*{box-sizing:border-box;margin:0;padding:0}
+body{position:relative;overflow:hidden;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;text-rendering:geometricPrecision}
+.stripbg,.slidebg{position:absolute;top:0}
+.slidebg{width:100rem}
+.slide{position:absolute;top:0;width:100rem}
+.slide>*,.trail{position:absolute}
+.trail{left:0;top:0;width:100%;height:100%;pointer-events:none}
+
+/* text */
+.t{text-wrap:balance;font-family:var(--f-body);line-height:1.08;overflow-wrap:break-word;hyphens:manual}
+:lang(ko) .t{word-break:keep-all}
+:lang(ja) .t{line-break:strict}
+.headline{font-family:var(--f-headline);font-weight:var(--w-headline);font-size:11rem;letter-spacing:-.008em;word-spacing:.06em;line-height:1.02}
+.headline-xl{font-family:var(--f-headline);font-weight:var(--w-headline);font-size:15rem;letter-spacing:-.03em;line-height:.95}
+.kicker{font-weight:800;font-size:3.6rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+.sub{font-size:4.4rem;line-height:1.3;font-weight:600;color:var(--muted)}
+.caption{font-size:3.4rem;font-weight:700}
+:lang(ja) .headline,:lang(ko) .headline,:lang(ja) .headline-xl,:lang(ko) .headline-xl{letter-spacing:0;line-height:1.18}
+:lang(ja) .kicker,:lang(ko) .kicker{letter-spacing:.04em}
+em.acc{font-style:normal;color:var(--accent)}
+.headline em.acc:last-child,.headline-xl em.acc:last-child{display:inline-block;text-wrap:balance}
+.script{font-family:var(--f-script);font-weight:400;font-style:normal;color:var(--accent2);letter-spacing:0}
+.scrib{position:relative;white-space:nowrap}
+.scrib::after{content:"";position:absolute;left:-2%;right:-2%;bottom:-.12em;height:.26em;background:var(--accent2);-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 20' preserveAspectRatio='none'%3E%3Cpath d='M3 14 C 50 4, 120 3, 197 9' fill='none' stroke='%23000' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat center/100% 100%}
+
+/* devices */
+.device{background:var(--frame);transform-origin:50% 30%;
+ box-shadow:inset 0 0 0 .25rem rgba(255,255,255,.14),inset 0 0 0 .5rem rgba(0,0,0,.6)}
+.device img{display:block;object-fit:cover}
+.device .island{position:absolute;left:50%;transform:translateX(-50%);background:#000;border-radius:99rem}
+.shadow{filter:drop-shadow(0 3rem 4rem rgba(20,12,30,.35)) drop-shadow(0 .6rem 1.2rem rgba(20,12,30,.25))}
+.shadow-s{filter:drop-shadow(0 1.2rem 2rem rgba(20,12,30,.28))}
+
+/* callout (zoomed UI card) */
+.callout{background-repeat:no-repeat;transform-origin:50% 50%}
+
+/* pills */
+.pill{display:inline-flex;align-items:center;gap:1.4rem;white-space:nowrap;padding:1.8rem 3.6rem;border-radius:99rem;
+ background:var(--pill-bg);color:var(--pill-ink);font-family:var(--f-body);font-weight:800;font-size:3.8rem;width:auto!important}
+.pill-ico{font-size:1.1em}
+
+/* laurel badge */
+.laurel-badge{display:flex;align-items:center;justify-content:center;gap:1rem;color:var(--ink);text-align:center}
+.laurel{height:17rem;width:auto;flex:none}
+.laurel.r{transform:scaleX(-1)}
+.lb-mid{display:flex;flex-direction:column;align-items:center;gap:.6rem;max-width:72%}
+.lb-title{font-family:var(--f-headline);font-weight:var(--w-headline);font-size:5.4rem;line-height:1}
+.lb-sub{font-family:var(--f-body);font-weight:700;font-size:2.8rem;line-height:1.15;opacity:.85}
+.stars{display:inline-flex;gap:.5rem}
+.stars svg{width:3.6rem;height:3.6rem}
+.starrow .stars svg{width:6rem;height:6rem}
+
+.sticker{display:block;height:auto}
+.shape svg{display:block;width:100%;height:auto}
+</style></head>
+<body style="width:17280px;height:1800px"><div class="stripbg" style="width:600rem;height:62.5rem;background:radial-gradient(90rem 50rem at 10% 0%, #1f4a8a 0%, transparent 60%), radial-gradient(90rem 50rem at 55% 100%, #1b3f78 0%, transparent 60%), radial-gradient(90rem 50rem at 95% 10%, #1f4a8a 0%, transparent 60%), linear-gradient(100deg,#0d1f3d 0%,#0a1a36 50%,#0d1f3d 100%)"></div><div class="slide" style="left:0rem;height:62.5rem"><div class="t kicker fit" style="left:10rem;top:5.2rem;width:80rem;text-align:center;font-size:1.55rem">⌥⇧⌘S from anywhere</div><div class="t headline fit" data-maxh="13.5" style="left:8rem;top:8.4rem;width:84rem;text-align:center;font-size:5.2rem">Snip it. <em class="acc">Mark it up.</em><br>Share it.</div><div class="callout shadow" style="left:20rem;top:24rem;width:72rem;z-index:2;transform:rotate(-1.5deg);height:31.615986861136772rem;background-image:url('file:///Users/lukewelch/Claude%20Projects/SnipClip/aso/screenshots/en/mac/01_hero.png');background-size:152.41579027587258% auto;background-position:59.14510031986042% 47.881508078994614%;border-radius:1.0rem"></div><div class="callout shadow" style="left:8rem;top:20rem;width:7.5rem;z-index:3;transform:rotate(3deg);height:30.494543536315987rem;background-image:url('file:///Users/lukewelch/Claude%20Projects/SnipClip/aso/screenshots/en/mac/01_hero.png');background-size:1615.5088852988692% auto;background-position:0.2878157978893508% 11.941272430668842%;border-radius:1.2rem"></div></div><div class="slide" style="left:100rem;height:62.5rem"><div class="t kicker fit" style="left:10rem;top:5.2rem;width:80rem;text-align:center;font-size:1.55rem">Region or window, your call</div><div class="t headline fit" data-maxh="13.5" style="left:8rem;top:8.4rem;width:84rem;text-align:center;font-size:5.2rem">Drag to snip.<br><em class="acc">Click for a window.</em></div><div class="callout shadow" style="left:10rem;top:25rem;width:80rem;z-index:2;transform:rotate(2deg);height:46.818696119873344rem;background-image:url('file:///Users/lukewelch/Claude%20Projects/SnipClip/aso/screenshots/en/mac/02_select.png');background-size:111.35857461024499% auto;background-position:53.33333333333334% 51.79781136008339%;border-radius:1.0rem"></div></div><div class="slide" style="left:200rem;height:62.5rem"><div class="t kicker fit" style="left:10rem;top:5.2rem;width:80rem;text-align:center;font-size:1.55rem">Always one click away</div><div class="t headline fit" data-maxh="13.5" style="left:8rem;top:8.4rem;width:84rem;text-align:center;font-size:5.2rem">Lives quietly in<br>your <em class="acc">menu bar</em></div><div class="callout shadow" style="left:36rem;top:21rem;width:28rem;z-index:2;transform:rotate(2deg);height:43.66645950561294rem;background-image:url('file:///Users/lukewelch/Claude%20Projects/SnipClip/aso/screenshots/en/mac/04_menubar_new.png');background-size:587.8894767783656% auto;background-position:89.79395107844319% 6.012497888870123%;border-radius:1.4rem"></div></div><div class="slide" style="left:300rem;height:62.5rem"><div class="t kicker fit" style="left:10rem;top:5.2rem;width:80rem;text-align:center;font-size:1.55rem">More than a snip</div><div class="t headline fit" data-maxh="13.5" style="left:8rem;top:8.4rem;width:84rem;text-align:center;font-size:5.2rem">Scroll it. Time it.<br><em class="acc">Record it.</em></div><div class="callout shadow" style="left:16rem;top:25rem;width:58rem;z-index:2;transform:rotate(-2deg);height:53.029422597152994rem;background-image:url('file:///Users/lukewelch/Claude%20Projects/SnipClip/aso/screenshots/en/mac/05_modes.png');background-size:173.97355601948504% auto;background-position:12.793979303857006% 51.79781136008339%;border-radius:1.0rem"></div><div class="callout shadow" style="left:60rem;top:30rem;width:30rem;z-index:3;transform:rotate(3deg);height:10.293600242644827rem;background-image:url('file:///Users/lukewelch/Claude%20Projects/SnipClip/aso/screenshots/en/mac/05_modes.png');background-size:530.7855626326964% auto;background-position:98.48447511089206% 5.8072396180324235%;border-radius:1.2rem"></div></div><div class="slide" style="left:400rem;height:62.5rem"><div class="t kicker fit" style="left:10rem;top:5.2rem;width:80rem;text-align:center;font-size:1.55rem">Custom hotkeys</div><div class="t headline fit" data-maxh="13.5" style="left:8rem;top:8.4rem;width:84rem;text-align:center;font-size:5.2rem">Your shortcuts,<br><em class="acc">your way</em></div><div class="callout shadow" style="left:27rem;top:24rem;width:46rem;z-index:2;transform:rotate(2deg);height:42.48795449214168rem;background-image:url('file:///Users/lukewelch/Claude%20Projects/SnipClip/aso/screenshots/en/mac/06_settings.png');background-size:307.8817733990148% auto;background-position:50.07405213270142% 26.211249303879715%;border-radius:1.0rem"></div></div><div class="slide" style="left:500rem;height:62.5rem"><div class="t kicker fit" style="left:10rem;top:5.2rem;width:80rem;text-align:center;font-size:1.55rem">No ads · No account · No tracking</div><div class="t headline fit" data-maxh="13.5" style="left:8rem;top:8.4rem;width:84rem;text-align:center;font-size:5.2rem">Pay once.<br><em class="acc">No subscription.</em></div><div class="callout shadow" style="left:27rem;top:26rem;width:46rem;z-index:2;transform:rotate(-2deg);height:42.907964789479266rem;background-image:url('file:///Users/lukewelch/Claude%20Projects/SnipClip/aso/screenshots/en/mac/07_welcome.png');background-size:318.1673560292714% auto;background-position:50.00729181857956% 25.7101238164603%;border-radius:1.0rem"></div><div class="pill shadow-s" style="left:58rem;top:33rem;z-index:3;transform:rotate(4deg);font-size:1.6rem"><span class="pill-ico">✓</span>Works offline · No data collected</div></div>
+<script>// Shrink any .fit text box until it fits its width (no overflow) and optional data-maxh (rem).
+// Long German words / CJK lines then never spill out of their slot.
+(async () => {
+  try { await document.fonts.ready; } catch (e) {}
+  await Promise.all([...document.images].map(i => i.decode().catch(() => {})));
+  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+  const warn = [];
+  for (const el of document.querySelectorAll('.fit')) {
+    const maxH = el.dataset.maxh ? parseFloat(el.dataset.maxh) * rem : Infinity;
+    let size = parseFloat(getComputedStyle(el).fontSize);
+    const start = size;
+    const tooBig = () => el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > maxH + 1 ||
+      [...el.querySelectorAll('*')].some(c => c.getBoundingClientRect().right > el.getBoundingClientRect().right + 2);
+    while (tooBig() && size > start * 0.45) { size *= 0.97; el.style.fontSize = size + 'px'; }
+    if (tooBig()) warn.push(el.textContent.slice(0, 40));
+  }
+  window.__fitWarnings = warn;
+  window.__fitDone = true;
+})();
+</script></body></html>

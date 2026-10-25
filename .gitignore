@@ -2,3 +2,6 @@ build/
 .DS_Store
 *.xcuserstate
 xcuserdata/
+
+*.log
+.DS_Store

@@ -4,26 +4,28 @@ Draft copy for App Store Connect. Spelling is en-GB (UK-based developer). Charac
 
 ---
 
-## App Name — 30 / 30 chars
+## App Name — 27 / 30 chars
 ```
-SnipClip: Screenshot Markup
-```
-
-## Subtitle — 30 / 30 chars
-```
-Capture, annotate, and share
+SnipClip: Screenshot Editor
 ```
 
-## Keywords — 100 / 100 chars
-(comma-separated, no spaces)
+## Subtitle — 25 / 30 chars
 ```
-screenshot,markup,annotation,drawing,capture,edit,tools,image,arrows,shapes,highlight,pen
+Screen Capture & Recorder
 ```
 
-## Promotional Text — 156 / 170 chars
+## Keywords — 96 / 100 chars
+(comma-separated, no spaces; no words repeated from the name or subtitle)
+```
+markup,annotation,annotate,snipping,snip,arrows,highlighter,shapes,drawing,record,tool,pen,image
+```
+
+Set in App Store Connect on draft version 1.6.1 (17 Oct 2026), following the ASO review of the same date.
+
+## Promotional Text — 130 / 170 chars
 (can be updated anytime without a new build)
 ```
-Snip any area or window with ⌥⇧⌘S, then mark it up with arrows, steps, blur, highlights and text. Scrolling capture and screen recording built in. Pay once.
+Capture, mark up and record your Mac screen. New: copy text from anything on screen, and pin screenshots above your other windows.
 ```
 
 ---
@@ -48,6 +50,16 @@ MARKUP TOOLS
 • Select — move and adjust anything you've drawn
 • Colour swatches and three line widths, with undo and redo
 
+COPY TEXT FROM ANYTHING
+Capture Text grabs the text from any area of your screen and copies it straight to your
+clipboard. In the editor, Copy Text (⇧⌘C) does the same for any capture. Recognition runs
+entirely on your Mac.
+
+PIN ON SCREEN
+Capture and Pin floats a screenshot above all your windows, a handy reference while you work.
+Drag it, resize it, fade it, and press Esc to close it. Pin on Screen (⌘P) pins any capture
+from the editor.
+
 MORE WAYS TO CAPTURE
 • Capture Region or Capture Full Screen
 • Click any window to capture just that window
@@ -64,11 +76,8 @@ WORKFLOW
 
 MADE FOR YOUR MAC
 Lives quietly in your menu bar, launches instantly, and lets you set your own shortcuts in
-Settings. Works completely offline — your captures never leave your Mac. No account, no ads,
+Settings. Pick a default save folder, or turn on Save without asking for one-click saves. Works completely offline — your captures never leave your Mac. No account, no ads,
 no tracking.
-
-PAY ONCE
-One simple price. No subscription, no in-app purchases.
 
 Perfect for developers, designers, support teams, teachers, and anyone who explains things with
 screenshots.
@@ -112,11 +121,13 @@ A big update to SnipClip:
 
 ## Screenshots
 
-6 Mac screenshots, navy/blue design, generated from `aso/config.json` with the aso-screenshots skill.
+8 Mac screenshots, navy/blue design, generated from `aso/config.json` with the aso-screenshots skill.
 Upload-ready in `Marketing/AppStore-Submission/`: `Mac-2880x1800/` or `Mac-1280x800/` (upload one set, in order):
-1. **Hero** — "Snip it. Mark it up. Share it." Annotated capture with steps, arrow, highlight, blur and tool palette
+1. **Hero** — "The screenshot editor for Mac / Capture, mark up & record your screen." Annotated capture with steps, arrow, highlight, blur and tool palette
 2. **Select** — "Drag to snip. Click for a window." Selection overlay with size readout
 3. **Menu bar** — "Lives quietly in your menu bar". Status menu
 4. **Modes** — "Scroll it. Time it. Record it." Scrolling Capture in progress
 5. **Settings** — "Your shortcuts, your way". Settings window
-6. **Price** — "Pay once. No subscription." Welcome window + "Works offline · No data collected"
+6. **Privacy** — "Works offline. No data collected." Welcome window + "No account · No ads · No tracking"
+7. **Capture Text** — "Copy text from anything on screen". Lumen page + "Copied 8 lines of text" callout
+8. **Pin** — "Pin it. Keep it in view." Pinned card with its right-click menu

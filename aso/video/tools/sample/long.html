@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Lumen 4.2 — Release Notes</title>
+<style>
+  :root { --ink:#0f1a2e; --muted:#5b6b86; --blue:#2f6bff; --line:#e6ebf3; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:17px/1.55 -apple-system, "SF Pro Text", system-ui, sans-serif; color:var(--ink); background:#f6f8fc; }
+  header { background:#fff; border-bottom:1px solid var(--line); }
+  .bar { max-width:1080px; margin:0 auto; padding:18px 32px; display:flex; align-items:center; gap:28px; }
+  .logo { font-weight:800; font-size:22px; letter-spacing:-.3px; display:flex; align-items:center; gap:10px; }
+  .logo i { width:28px; height:28px; border-radius:8px; background:linear-gradient(135deg,#4a90ff,#7b5cff); display:inline-block; }
+  nav a { color:var(--muted); text-decoration:none; margin-right:22px; font-weight:500; }
+  main { max-width:1080px; margin:0 auto; padding:44px 32px 80px; display:grid; grid-template-columns: 1fr 320px; gap:40px; }
+  h1 { font-size:40px; letter-spacing:-.8px; margin:0 0 6px; }
+  .sub { color:var(--muted); margin:0 0 28px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:16px; padding:24px 28px; margin-bottom:20px; box-shadow:0 1px 2px rgba(15,26,46,.04); }
+  .tag { display:inline-block; font-size:12px; font-weight:700; letter-spacing:.4px; text-transform:uppercase; padding:3px 9px; border-radius:6px; margin-right:8px; }
+  .new { background:#e7f0ff; color:#2f6bff; } .fix { background:#e9f8ef; color:#1f8a4c; } .imp { background:#fff3e2; color:#b86a00; }
+  h3 { margin:10px 0 6px; font-size:20px; }
+  p { margin:0 0 8px; color:#2b3954; }
+  .btn { display:inline-block; margin-top:8px; padding:9px 16px; border-radius:9px; background:#0f1a2e; color:#fff; font-weight:600; font-size:15px; text-decoration:none; }
+  aside .card h4 { margin:0 0 10px; font-size:15px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); }
+  .kv { display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid var(--line); font-size:15px; }
+  .kv:last-child { border:0; }
+  .steps li { margin:6px 0; }
+</style>
+</head>
+<body>
+<header><div class="bar">
+  <div class="logo"><i></i>Lumen</div>
+  <nav><a href="#">Features</a><a href="#">Pricing</a><a href="#">Docs</a><a href="#">Changelog</a></nav>
+</div></header>
+<main>
+  <section>
+    <h1>Release Notes — Lumen 4.2</h1>
+    <p class="sub">Faster sync, a new command palette, and 38 fixes.</p>
+    <div class="card">
+      <span class="tag new">New</span>
+      <h3>Command palette</h3>
+      <p>Press ⌘K anywhere to jump to projects, run actions and search your library.</p>
+      <a class="btn" href="#">Try it now</a>
+    </div>
+    <div class="card">
+      <span class="tag imp">Improved</span>
+      <h3>Sync is up to 3× faster</h3>
+      <p>Large libraries now sync incrementally, so changes appear on your other devices in seconds.</p>
+    </div>
+    <div class="card">
+      <span class="tag fix">Fixed</span>
+      <h3>Export and sharing</h3>
+      <ol class="steps">
+        <li>Exports keep their original colour profile.</li>
+        <li>Share links no longer expire early.</li>
+        <li>PDF export respects page margins.</li>
+      </ol>
+    </div>
+<div class="card"><span class="tag imp">Improved</span><h3>Editor</h3><ul class="steps"><li>Smoother scrolling in long documents</li><li>Find and replace now supports whole-word matching</li><li>Tables can be resized by dragging column edges</li><li>Paste as plain text with ⇧⌘V</li></ul></div><div class="card"><span class="tag new">New</span><h3>Redesigned sidebar</h3><ul class="steps"><li>Pin your favourite projects to the top</li><li>Collapse sections you don't use</li><li>Drag to reorder anything</li><li>A new compact mode for small screens</li></ul></div><div class="card"><span class="tag imp">Improved</span><h3>Accessibility</h3><ul class="steps"><li>Every toolbar control has a VoiceOver label</li><li>Focus rings follow the system accent colour</li><li>Keyboard navigation reaches every panel</li><li>Larger text sizes are respected throughout</li></ul></div><div class="card"><span class="tag imp">Improved</span><h3>Performance</h3><ul class="steps"><li>Opening large projects is noticeably quicker</li><li>Memory use during long sessions has dropped by a third</li><li>Thumbnails are generated in the background</li><li>Startup time reduced on older Macs</li></ul></div><div class="card"><span class="tag fix">Fixed</span><h3>Stability</h3><ul class="steps"><li>Fixed a crash when renaming a project during sync</li><li>Fixed tags occasionally disappearing after import</li><li>Fixed the date picker showing the wrong week</li><li>Fixed blurry icons on external displays</li><li>Fixed search ignoring accented characters</li></ul></div><div class="card"><span class="tag new">New</span><h3>Templates</h3><ul class="steps"><li>Start projects from twelve new templates</li><li>Save any project as your own template</li><li>Share templates with your team</li><li>Templates now include sample content</li></ul></div><div class="card"><span class="tag imp">Improved</span><h3>Search</h3><ul class="steps"><li>Results appear as you type</li><li>Filter by tag, date or owner</li><li>Search inside attachments</li><li>Recent searches are remembered</li></ul></div><div class="card"><span class="tag fix">Fixed</span><h3>Import</h3><ul class="steps"><li>CSV imports keep their column order</li><li>Large imports no longer stall at 99%</li><li>Dates in imported files use your locale</li><li>Duplicate detection is more accurate</li></ul></div>
+  </section>
+  <aside>
+    <div class="card">
+      <h4>This release</h4>
+      <div class="kv"><span>Version</span><b>4.2.0</b></div>
+      <div class="kv"><span>Released</span><b>12 Sep</b></div>
+      <div class="kv"><span>Size</span><b>48 MB</b></div>
+      <div class="kv"><span>Requires</span><b>macOS 13+</b></div>
+    </div>
+    <div class="card">
+      <h4>Coming in 4.3</h4>
+      <p>Shared workspaces, offline mode for iPad and a refreshed icon set.</p>
+    </div>
+  </aside>
+</main>
+</body>
+</html>

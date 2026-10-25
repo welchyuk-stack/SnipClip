@@ -1,0 +1,39 @@
+{
+ "global": {
+  "offline": "No account · No ads · No tracking"
+ },
+ "slides": {
+  "01_hero": {
+   "kicker": "The screenshot editor for Mac",
+   "headline": "Capture, mark up &\n*record your screen*"
+  },
+  "02_select": {
+   "kicker": "Region or window, your call",
+   "headline": "Drag to snip.\n*Click for a window.*"
+  },
+  "03_menubar": {
+   "kicker": "Always one click away",
+   "headline": "Lives quietly in\nyour *menu bar*"
+  },
+  "04_modes": {
+   "kicker": "More than a snip",
+   "headline": "Scroll it. Time it.\n*Record it.*"
+  },
+  "05_settings": {
+   "kicker": "Custom hotkeys",
+   "headline": "Your shortcuts,\n*your way*"
+  },
+  "06_price": {
+   "kicker": "Private by design",
+   "headline": "Works offline.\n*No data collected.*"
+  },
+  "07_text": {
+   "kicker": "Capture Text · works offline",
+   "headline": "Copy text from\n*anything on screen*"
+  },
+  "08_pin": {
+   "kicker": "Capture and Pin",
+   "headline": "Pin it.\n*Keep it in view.*"
+  }
+ }
+}

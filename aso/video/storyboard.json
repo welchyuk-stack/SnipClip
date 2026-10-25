@@ -1,0 +1,75 @@
+{
+ "bg": "#0d1f3d",
+ "clips": [
+  {
+   "name": "01_snip",
+   "kicker": "⌥⇧⌘S from anywhere",
+   "caption": "Snip *anything*",
+   "start": 0.8,
+   "dur": 8.5,
+   "crop": [
+    80,
+    74,
+    2800,
+    1400
+   ],
+   "speed": 1.6
+  },
+  {
+   "name": "02_markup",
+   "kicker": "Arrows, boxes, blur",
+   "caption": "Mark it *up*",
+   "start": 3.5,
+   "dur": 18.5,
+   "crop": [
+    760,
+    520,
+    1520,
+    760
+   ],
+   "speed": 2.4
+  },
+  {
+   "name": "03_text",
+   "kicker": "Capture Text",
+   "caption": "Copy text from *anything*",
+   "start": 0.5,
+   "dur": 8.3,
+   "crop": [
+    80,
+    74,
+    2800,
+    1400
+   ],
+   "speed": 1.5
+  },
+  {
+   "name": "04_pin",
+   "kicker": "Pin on Screen",
+   "caption": "Pin it *in view*",
+   "start": 0.5,
+   "dur": 7.0,
+   "crop": [
+    80,
+    74,
+    2800,
+    1400
+   ],
+   "speed": 1.25
+  },
+  {
+   "name": "05_scroll",
+   "kicker": "Scrolling Capture",
+   "caption": "Capture *whole pages*",
+   "start": 3.5,
+   "dur": 18.5,
+   "crop": [
+    80,
+    300,
+    2800,
+    1400
+   ],
+   "speed": 2.8
+  }
+ ]
+}
